@@ -3,10 +3,37 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TARGET="$HOME/.claude/statusline.sh"
+CONFIG="$HOME/.claude/interline.json"
 
 # Copy statusline script
 cp "$SCRIPT_DIR/statusline.sh" "$TARGET"
 chmod +x "$TARGET"
+
+# Create default config if missing
+if [ ! -f "$CONFIG" ]; then
+  cat > "$CONFIG" << 'CONF'
+{
+  "colors": {
+    "clodex": [210, 216, 228, 157, 111, 183]
+  },
+  "layers": {
+    "dispatch": true,
+    "bead": true,
+    "phase": true,
+    "clodex": true
+  },
+  "labels": {
+    "clodex": "Clodex",
+    "dispatch_prefix": "Clodex"
+  },
+  "format": {
+    "separator": " | ",
+    "branch_separator": ":"
+  }
+}
+CONF
+  echo "Created default config at $CONFIG"
+fi
 
 # Configure settings.json
 python3 -c "
@@ -28,3 +55,4 @@ with open(path, 'w') as f:
 
 echo "Statusline installed at $TARGET"
 echo "Settings updated: ~/.claude/settings.json"
+echo "Customize: $CONFIG"
