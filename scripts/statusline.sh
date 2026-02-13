@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Claude Code statusline — workflow-aware with dispatch state tracking
-# Priority: dispatch state > transcript phase > clodex mode > default
+# Priority: dispatch state > bead context > transcript phase > clodex mode > default
 
 # Read JSON input from stdin
 input=$(cat)
@@ -26,12 +26,17 @@ cfg_color_dispatch=$(_il_cfg '.colors.dispatch')
 cfg_color_bead=$(_il_cfg '.colors.bead')
 cfg_color_phase=$(_il_cfg '.colors.phase')
 cfg_color_branch=$(_il_cfg '.colors.branch')
+cfg_title_max=$(_il_cfg '.format.title_max_chars')
 
 # Apply defaults
 sep="${cfg_sep:- | }"
 branch_sep="${cfg_branch_sep:-:}"
 clodex_label="${cfg_clodex_label:-Clodex}"
 dispatch_prefix="${cfg_dispatch_prefix:-Clodex}"
+title_max="${cfg_title_max:-30}"
+
+# Default priority colors: P0=red, P1=orange, P2=yellow, P3=blue, P4=gray
+_il_priority_defaults=(196 208 220 75 245)
 
 # Helper: wrap text in ANSI 256-color
 _il_color() {
@@ -40,6 +45,27 @@ _il_color() {
     echo -n "\033[38;5;${code}m${text}\033[0m"
   else
     echo -n "$text"
+  fi
+}
+
+# Helper: get priority color (from config or defaults)
+_il_priority_color() {
+  local p="$1"
+  if [ -f "$_il_config" ]; then
+    local c
+    c=$(jq -r ".colors.priority[$p] // empty" "$_il_config" 2>/dev/null)
+    [ -n "$c" ] && echo "$c" && return
+  fi
+  echo "${_il_priority_defaults[$p]:-245}"
+}
+
+# Helper: truncate text with ellipsis
+_il_truncate() {
+  local text="$1" max="$2"
+  if [ "${#text}" -gt "$max" ]; then
+    echo "${text:0:$((max - 3))}..."
+  else
+    echo "$text"
   fi
 }
 
@@ -84,6 +110,7 @@ model=$(echo "$input" | jq -r '.model.display_name // "Claude"')
 project_dir=$(echo "$input" | jq -r '.workspace.project_dir // .workspace.current_dir')
 project=$(basename "$project_dir")
 transcript=$(echo "$input" | jq -r '.transcript_path // empty')
+session_id=$(echo "$input" | jq -r '.session_id // empty')
 
 # Get git branch
 git_branch=""
@@ -110,25 +137,70 @@ if _il_cfg_bool '.layers.dispatch'; then
   done
 fi
 
-# --- Layer 1.5: Check for active bead context ---
+# --- Layer 1.5: Active beads (sideband + bd query) ---
 bead_label=""
 if [ -z "$dispatch_label" ] && _il_cfg_bool '.layers.bead'; then
-  session_id=$(echo "$input" | jq -r '.session_id // empty')
+
+  # --- 1.5a: Read sideband file for phase context ---
+  sideband_id=""
+  sideband_phase=""
   if [ -n "$session_id" ]; then
     bead_file="/tmp/clavain-bead-${session_id}.json"
     if [ -f "$bead_file" ]; then
-      # Skip stale files (>24h old)
       file_age=$(( $(date +%s) - $(stat -c %Y "$bead_file" 2>/dev/null || echo 0) ))
       if [ "$file_age" -lt 86400 ]; then
-        bead_id=$(jq -r '.id // empty' "$bead_file" 2>/dev/null)
-        bead_phase=$(jq -r '.phase // empty' "$bead_file" 2>/dev/null)
-        if [ -n "$bead_id" ]; then
-          local_bead="$bead_id"
-          [ -n "$bead_phase" ] && local_bead="$local_bead ($bead_phase)"
-          bead_label="$(_il_color "$cfg_color_bead" "$local_bead")"
-        fi
+        sideband_id=$(jq -r '.id // empty' "$bead_file" 2>/dev/null)
+        sideband_phase=$(jq -r '.phase // empty' "$bead_file" 2>/dev/null)
       fi
     fi
+  fi
+
+  # --- 1.5b: Query bd for all in_progress beads ---
+  bd_beads=""
+  if _il_cfg_bool '.layers.bead_query' && command -v bd > /dev/null 2>&1; then
+    bd_beads=$(timeout 2 bd list --status=in_progress --json --quiet 2>/dev/null || true)
+  fi
+
+  # --- 1.5c: Merge sideband + bd into bead display ---
+  bead_parts=()
+
+  if [ -n "$bd_beads" ] && [ "$bd_beads" != "null" ] && [ "$bd_beads" != "[]" ]; then
+    # Parse bd results and format each bead
+    bead_count=$(echo "$bd_beads" | jq 'length' 2>/dev/null)
+    for (( i=0; i<${bead_count:-0}; i++ )); do
+      b_id=$(echo "$bd_beads" | jq -r ".[$i].id // empty" 2>/dev/null)
+      b_title=$(echo "$bd_beads" | jq -r ".[$i].title // empty" 2>/dev/null)
+      b_priority=$(echo "$bd_beads" | jq -r ".[$i].priority // 4" 2>/dev/null)
+      [ -z "$b_id" ] && continue
+
+      # Truncate title
+      b_title_short=$(_il_truncate "$b_title" "$title_max")
+
+      # Check if sideband has phase info for this bead
+      b_phase=""
+      if [ "$b_id" = "$sideband_id" ] && [ -n "$sideband_phase" ]; then
+        b_phase=" ($sideband_phase)"
+      fi
+
+      # Format: P{n} {id}: {title}... ({phase})
+      p_color=$(_il_priority_color "$b_priority")
+      bead_entry="$(_il_color "$p_color" "P${b_priority}") $(_il_color "$cfg_color_bead" "${b_id}: ${b_title_short}${b_phase}")"
+      bead_parts+=("$bead_entry")
+    done
+  elif [ -n "$sideband_id" ]; then
+    # Fallback: sideband only (no bd available)
+    local_bead="$sideband_id"
+    [ -n "$sideband_phase" ] && local_bead="$local_bead ($sideband_phase)"
+    bead_parts+=("$(_il_color "$cfg_color_bead" "$local_bead")")
+  fi
+
+  # Join bead parts with comma
+  if [ ${#bead_parts[@]} -gt 0 ]; then
+    bead_label=""
+    for (( i=0; i<${#bead_parts[@]}; i++ )); do
+      [ $i -gt 0 ] && bead_label="$bead_label, "
+      bead_label="$bead_label${bead_parts[$i]}"
+    done
   fi
 fi
 
@@ -188,7 +260,7 @@ fi
 if [ -n "$dispatch_label" ]; then
   status_line="$status_line${sep}$dispatch_label"
 else
-  # Bead and phase are shown together: "Clavain-021h (planned) | Executing"
+  # Bead and phase are shown together: "P1 Clavain-4jeg: title... (executing) | Reviewing"
   if [ -n "$bead_label" ]; then
     status_line="$status_line${sep}$bead_label"
   fi

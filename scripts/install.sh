@@ -14,11 +14,16 @@ if [ ! -f "$CONFIG" ]; then
   cat > "$CONFIG" << 'CONF'
 {
   "colors": {
-    "clodex": [210, 216, 228, 157, 111, 183]
+    "clodex": [210, 216, 228, 157, 111, 183],
+    "priority": [196, 208, 220, 75, 245],
+    "bead": 117,
+    "phase": 245,
+    "branch": 244
   },
   "layers": {
     "dispatch": true,
     "bead": true,
+    "bead_query": true,
     "phase": true,
     "clodex": true
   },
@@ -28,7 +33,8 @@ if [ ! -f "$CONFIG" ]; then
   },
   "format": {
     "separator": " | ",
-    "branch_separator": ":"
+    "branch_separator": ":",
+    "title_max_chars": 30
   }
 }
 CONF
