@@ -86,12 +86,10 @@ if [ -z "$dispatch_label" ] && [ -n "$transcript" ] && [ -f "$transcript" ]; the
   fi
 fi
 
-# --- Layer 3: Check for clodex mode flag ---
+# --- Layer 3: Check for clodex mode flag (always visible when active) ---
 clodex_suffix=""
-if [ -z "$dispatch_label" ] && [ -z "$phase_label" ]; then
-  if [ -f "$project_dir/.claude/clodex-toggle.flag" ]; then
-    clodex_suffix=" with Clodex"
-  fi
+if [ -f "$project_dir/.claude/clodex-toggle.flag" ]; then
+  clodex_suffix=" with Clodex"
 fi
 
 # --- Build status line ---
