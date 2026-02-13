@@ -128,7 +128,12 @@ if _il_cfg_bool '.layers.dispatch'; then
     pid="${pid%.json}"
     if kill -0 "$pid" 2>/dev/null; then
       name=$(jq -r '.name // "codex"' "$state_file" 2>/dev/null)
-      dispatch_label="$(_il_color "$cfg_color_dispatch" "${dispatch_prefix}: ${name}")"
+      activity=$(jq -r '.activity // empty' "$state_file" 2>/dev/null)
+      if [ -n "$activity" ] && [ "$activity" != "starting" ] && [ "$activity" != "done" ]; then
+        dispatch_label="$(_il_color "$cfg_color_dispatch" "${dispatch_prefix}: ${name} (${activity})")"
+      else
+        dispatch_label="$(_il_color "$cfg_color_dispatch" "${dispatch_prefix}: ${name}")"
+      fi
       break
     else
       # Stale state file — owning process died without cleanup
