@@ -173,18 +173,21 @@ if [ -z "$dispatch_label" ] && _il_cfg_bool '.layers.bead'; then
       b_priority=$(echo "$bd_beads" | jq -r ".[$i].priority // 4" 2>/dev/null)
       [ -z "$b_id" ] && continue
 
-      # Truncate title
-      b_title_short=$(_il_truncate "$b_title" "$title_max")
-
       # Check if sideband has phase info for this bead
       b_phase=""
       if [ "$b_id" = "$sideband_id" ] && [ -n "$sideband_phase" ]; then
         b_phase=" ($sideband_phase)"
       fi
 
-      # Format: P{n} {id}: {title}... ({phase})
       p_color=$(_il_priority_color "$b_priority")
-      bead_entry="$(_il_color "$p_color" "P${b_priority}") $(_il_color "$cfg_color_bead" "${b_id}: ${b_title_short}${b_phase}")"
+      if [ "${bead_count:-0}" -eq 1 ]; then
+        # Single bead: full format with title
+        b_title_short=$(_il_truncate "$b_title" "$title_max")
+        bead_entry="$(_il_color "$p_color" "P${b_priority}") $(_il_color "$cfg_color_bead" "${b_id}: ${b_title_short}${b_phase}")"
+      else
+        # Multiple beads: ID only to save space
+        bead_entry="$(_il_color "$p_color" "P${b_priority}") $(_il_color "$cfg_color_bead" "${b_id}${b_phase}")"
+      fi
       bead_parts+=("$bead_entry")
     done
   elif [ -n "$sideband_id" ]; then
