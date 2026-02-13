@@ -89,7 +89,7 @@ fi
 # --- Layer 3: Check for clodex mode flag (always visible when active) ---
 clodex_suffix=""
 if [ -f "$project_dir/.claude/clodex-toggle.flag" ]; then
-  clodex_suffix=" with Clodex"
+  clodex_suffix=" with \033[1;35mClodex\033[0m"
 fi
 
 # --- Build status line ---
