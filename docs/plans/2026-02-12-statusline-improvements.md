@@ -1,4 +1,4 @@
-# Plan: Interline Statusline Improvements
+# Plan: interline Statusline Improvements
 
 **Date:** 2026-02-12
 **Brainstorm:** `docs/brainstorms/2026-02-12-statusline-improvements-brainstorm.md`

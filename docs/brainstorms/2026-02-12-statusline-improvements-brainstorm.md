@@ -1,4 +1,4 @@
-# Brainstorm: Interline Statusline Improvements
+# Brainstorm: interline Statusline Improvements
 
 **Date:** 2026-02-12
 **Status:** Complete — ready for planning
