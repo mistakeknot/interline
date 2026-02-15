@@ -18,14 +18,16 @@ if [ ! -f "$CONFIG" ]; then
     "priority": [196, 208, 220, 75, 245],
     "bead": 117,
     "phase": 245,
-    "branch": 244
+    "branch": 244,
+    "coordination": 214
   },
   "layers": {
     "dispatch": true,
     "bead": true,
     "bead_query": true,
     "phase": true,
-    "clodex": true
+    "clodex": true,
+    "coordination": true
   },
   "labels": {
     "clodex": "Clodex",

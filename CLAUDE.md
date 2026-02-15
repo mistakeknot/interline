@@ -8,14 +8,16 @@ Reads state from multiple sources:
 - **bd CLI** queries `in_progress` beads directly for title, priority, and ID
 - **interphase** writes `/tmp/clavain-bead-${session_id}.json` (bead lifecycle phase)
 - **Clavain** writes `/tmp/clavain-dispatch-$$.json` (Codex dispatch state)
+- **interlock** writes `/var/run/intermute/signals/{project-slug}-{agent-id}.jsonl` (coordination signals)
 - **Transcript** scanning detects active workflow phase from Skill invocations
 
 ## Priority Layers
 
 1. **Dispatch** — active Codex dispatch (highest priority)
-2. **Bead context** — all `in_progress` beads with priority, title, and phase
-3. **Workflow phase** — last invoked skill mapped to phase name
-4. **Clodex mode** — passive clodex toggle flag
+2. **Coordination** — multi-agent coordination status from interlock signal files
+3. **Bead context** — all `in_progress` beads with priority, title, and phase
+4. **Workflow phase** — last invoked skill mapped to phase name
+5. **Clodex mode** — passive clodex toggle flag
 
 ## Bead Display
 
@@ -42,14 +44,16 @@ All customization lives in `~/.claude/interline.json`. Every field is optional �
     "dispatch": 214,
     "bead": 117,
     "phase": 245,
-    "branch": 244
+    "branch": 244,
+    "coordination": 214
   },
   "layers": {
     "dispatch": true,
     "bead": true,
     "bead_query": true,
     "phase": true,
-    "clodex": true
+    "clodex": true,
+    "coordination": true
   },
   "labels": {
     "clodex": "Clodex",
@@ -69,6 +73,7 @@ ANSI 256-color codes (0-255).
 
 - `colors.clodex` — array for per-letter rainbow, or number for single color
 - `colors.priority` — array of 5 colors for P0-P4 (indexed by priority number)
+- `colors.coordination` — number for coordination status text
 - Other color keys — single number
 
 Omit a color key to render that element without color (plain text).
@@ -78,6 +83,7 @@ Omit a color key to render that element without color (plain text).
 Set any layer to `false` to hide it. All default to `true`.
 
 - `layers.bead_query` — controls whether `bd list` is queried for live bead data. Disable to rely only on sideband files.
+- `layers.coordination` — controls whether coordination status from interlock signal files is shown. Only active when `INTERMUTE_AGENT_ID` env var is set.
 
 ### Agent guidelines
 

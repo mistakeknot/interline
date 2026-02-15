@@ -47,6 +47,8 @@ The install creates `~/.claude/interline.json` with defaults. Users can customiz
 | `layers.bead` | boolean | `true` | Show bead context (ID + phase) |
 | `layers.phase` | boolean | `true` | Show workflow phase from transcript |
 | `layers.clodex` | boolean | `true` | Show clodex mode indicator |
+| `colors.coordination` | number | `214` | ANSI 256-color for coordination status text |
+| `layers.coordination` | boolean | `true` | Show coordination status from interlock signals (requires `INTERMUTE_AGENT_ID`) |
 | `labels.clodex` | string | `"Clodex"` | Text for the clodex mode rainbow label |
 | `labels.dispatch_prefix` | string | `"Clodex"` | Prefix before dispatch task name |
 | `format.separator` | string | `" \| "` | Separator between status segments |

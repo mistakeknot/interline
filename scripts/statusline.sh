@@ -26,6 +26,7 @@ cfg_color_dispatch=$(_il_cfg '.colors.dispatch')
 cfg_color_bead=$(_il_cfg '.colors.bead')
 cfg_color_phase=$(_il_cfg '.colors.phase')
 cfg_color_branch=$(_il_cfg '.colors.branch')
+cfg_color_coordination=$(_il_cfg '.colors.coordination')
 cfg_title_max=$(_il_cfg '.format.title_max_chars')
 
 # Apply defaults
@@ -142,9 +143,58 @@ if _il_cfg_bool '.layers.dispatch'; then
   done
 fi
 
+# --- Layer 1.25: Coordination status (interlock signal files) ---
+coord_label=""
+if [ -z "$dispatch_label" ] && _il_cfg_bool '.layers.coordination'; then
+  if [ -n "${INTERMUTE_AGENT_ID:-}" ]; then
+    _il_signal_dir="/var/run/intermute/signals"
+    _il_project_slug="$project"
+
+    # Count active agents by counting signal files for this project
+    _il_agent_count=0
+    if [ -d "$_il_signal_dir" ]; then
+      _il_agent_count=$(ls -1 "${_il_signal_dir}/${_il_project_slug}"-*.jsonl 2>/dev/null | wc -l)
+    fi
+
+    # Read this agent's signal file for latest event
+    _il_signal_file="${_il_signal_dir}/${_il_project_slug}-${INTERMUTE_AGENT_ID}.jsonl"
+    _il_signal_text=""
+    if [ -f "$_il_signal_file" ]; then
+      _il_latest=$(tail -1 "$_il_signal_file" 2>/dev/null)
+      if [ -n "$_il_latest" ]; then
+        _il_sig_version=$(echo "$_il_latest" | jq -r '.version // 0' 2>/dev/null)
+        if [ "$_il_sig_version" = "1" ]; then
+          _il_signal_text=$(echo "$_il_latest" | jq -r '.text // empty' 2>/dev/null)
+        else
+          echo "interline: unknown signal schema version $_il_sig_version, skipping" >&2
+        fi
+      fi
+    fi
+
+    # Build coordination display
+    if [ "$_il_agent_count" -gt 0 ] || [ -n "$_il_signal_text" ]; then
+      _il_coord_display=""
+      if [ "$_il_agent_count" -gt 0 ]; then
+        _il_coord_display="${_il_agent_count} agents"
+      fi
+      if [ -n "$_il_signal_text" ]; then
+        _il_signal_short=$(_il_truncate "$_il_signal_text" "$title_max")
+        if [ -n "$_il_coord_display" ]; then
+          _il_coord_display="${_il_coord_display} | ${_il_signal_short}"
+        else
+          _il_coord_display="$_il_signal_short"
+        fi
+      fi
+      coord_label="$(_il_color "$cfg_color_coordination" "$_il_coord_display")"
+    else
+      coord_label="$(_il_color "$cfg_color_coordination" "coordination active")"
+    fi
+  fi
+fi
+
 # --- Layer 1.5: Active beads (sideband + bd query) ---
 bead_label=""
-if [ -z "$dispatch_label" ] && _il_cfg_bool '.layers.bead'; then
+if [ -z "$dispatch_label" ] && [ -z "$coord_label" ] && _il_cfg_bool '.layers.bead'; then
 
   # --- 1.5a: Read sideband file for phase context ---
   sideband_id=""
@@ -214,7 +264,7 @@ fi
 
 # --- Layer 2: Scan transcript for last workflow phase ---
 phase_label=""
-if [ -z "$dispatch_label" ] && _il_cfg_bool '.layers.phase'; then
+if [ -z "$dispatch_label" ] && [ -z "$coord_label" ] && _il_cfg_bool '.layers.phase'; then
   if [ -n "$transcript" ] && [ -f "$transcript" ]; then
     # Find last Skill invocation — scan backwards, stop at first match
     skill_line=$(tac "$transcript" 2>/dev/null | grep -m1 '"Skill"' || true)
@@ -264,9 +314,11 @@ if [ -n "$git_branch" ]; then
   status_line="$status_line${branch_sep}${git_display}"
 fi
 
-# Append workflow context (dispatch > bead + phase)
+# Append workflow context (dispatch > coordination > bead + phase)
 if [ -n "$dispatch_label" ]; then
   status_line="$status_line${sep}$dispatch_label"
+elif [ -n "$coord_label" ]; then
+  status_line="$status_line${sep}$coord_label"
 else
   # Bead and phase are shown together: "P1 Clavain-4jeg: title... (executing) | Reviewing"
   if [ -n "$bead_label" ]; then
