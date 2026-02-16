@@ -14,7 +14,7 @@ if [ ! -f "$CONFIG" ]; then
   cat > "$CONFIG" << 'CONF'
 {
   "colors": {
-    "clodex": [210, 216, 228, 157, 111, 183],
+    "interserve": [210, 216, 228, 157, 111, 183],
     "priority": [196, 208, 220, 75, 245],
     "bead": 117,
     "phase": 245,
@@ -26,12 +26,12 @@ if [ ! -f "$CONFIG" ]; then
     "bead": true,
     "bead_query": true,
     "phase": true,
-    "clodex": true,
+    "interserve": true,
     "coordination": true
   },
   "labels": {
-    "clodex": "Clodex",
-    "dispatch_prefix": "Clodex"
+    "interserve": "Interserve",
+    "dispatch_prefix": "Interserve"
   },
   "format": {
     "separator": " | ",

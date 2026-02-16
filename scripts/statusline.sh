@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Claude Code statusline — workflow-aware with dispatch state tracking
-# Priority: dispatch state > bead context > transcript phase > clodex mode > default
+# Priority: dispatch state > bead context > transcript phase > interserve mode > default
 
 # Read JSON input from stdin
 input=$(cat)
@@ -20,7 +20,7 @@ _il_cfg_bool() {
 # Pre-read config values (avoid repeated jq calls)
 cfg_sep=$(_il_cfg '.format.separator')
 cfg_branch_sep=$(_il_cfg '.format.branch_separator')
-cfg_clodex_label=$(_il_cfg '.labels.clodex')
+cfg_interserve_label=$(_il_cfg '.labels.interserve')
 cfg_dispatch_prefix=$(_il_cfg '.labels.dispatch_prefix')
 cfg_color_dispatch=$(_il_cfg '.colors.dispatch')
 cfg_color_bead=$(_il_cfg '.colors.bead')
@@ -32,8 +32,8 @@ cfg_title_max=$(_il_cfg '.format.title_max_chars')
 # Apply defaults
 sep="${cfg_sep:- | }"
 branch_sep="${cfg_branch_sep:-:}"
-clodex_label="${cfg_clodex_label:-Clodex}"
-dispatch_prefix="${cfg_dispatch_prefix:-Clodex}"
+interserve_label="${cfg_interserve_label:-Interserve}"
+dispatch_prefix="${cfg_dispatch_prefix:-Interserve}"
 title_max="${cfg_title_max:-30}"
 
 # Default priority colors: P0=red, P1=orange, P2=yellow, P3=blue, P4=gray
@@ -70,27 +70,27 @@ _il_truncate() {
   fi
 }
 
-# Helper: render clodex label with rainbow or single color
-_il_clodex_rainbow() {
+# Helper: render interserve label with rainbow or single color
+_il_interserve_rainbow() {
   local label="$1"
   if [ -f "$_il_config" ]; then
-    # Check if colors.clodex is an array
+    # Check if colors.interserve is an array
     local arr_len
-    arr_len=$(jq '.colors.clodex | if type == "array" then length else 0 end' "$_il_config" 2>/dev/null)
+    arr_len=$(jq '.colors.interserve | if type == "array" then length else 0 end' "$_il_config" 2>/dev/null)
     if [ "${arr_len:-0}" -gt 0 ]; then
       # Per-letter coloring from array
       local result="" i=0 c len=${#label}
       while [ "$i" -lt "$len" ]; do
-        c=$(jq -r ".colors.clodex[$((i % arr_len))]" "$_il_config" 2>/dev/null)
+        c=$(jq -r ".colors.interserve[$((i % arr_len))]" "$_il_config" 2>/dev/null)
         result="${result}\033[38;5;${c}m${label:$i:1}"
         i=$((i + 1))
       done
       echo -n "${result}\033[0m"
       return
     fi
-    # Check if colors.clodex is a scalar
+    # Check if colors.interserve is a scalar
     local scalar
-    scalar=$(jq -r '.colors.clodex | if type == "number" then tostring else empty end' "$_il_config" 2>/dev/null)
+    scalar=$(jq -r '.colors.interserve | if type == "number" then tostring else empty end' "$_il_config" 2>/dev/null)
     if [ -n "$scalar" ]; then
       echo -n "\033[38;5;${scalar}m${label}\033[0m"
       return
@@ -284,7 +284,7 @@ if [ -z "$dispatch_label" ] && [ -z "$coord_label" ] && _il_cfg_bool '.layers.ph
           quality-gates)      phase_text="Quality Gates" ;;
           resolve)            phase_text="Resolving" ;;
           landing-a-change)   phase_text="Shipping" ;;
-          clodex*)            phase_text="Dispatching" ;;
+          interserve*)        phase_text="Dispatching" ;;
           compound|engineering-docs) phase_text="Documenting" ;;
           interpeer|debate)   phase_text="Peer Review" ;;
           smoke-test)         phase_text="Testing" ;;
@@ -298,16 +298,16 @@ if [ -z "$dispatch_label" ] && [ -z "$coord_label" ] && _il_cfg_bool '.layers.ph
   fi
 fi
 
-# --- Layer 3: Check for clodex mode flag (always visible when active) ---
-clodex_suffix=""
-if _il_cfg_bool '.layers.clodex'; then
-  if [ -f "$project_dir/.claude/clodex-toggle.flag" ]; then
-    clodex_suffix=" with $(_il_clodex_rainbow "$clodex_label")"
+# --- Layer 3: Check for interserve mode flag (always visible when active) ---
+interserve_suffix=""
+if _il_cfg_bool '.layers.interserve'; then
+  if [ -f "$project_dir/.claude/interserve-toggle.flag" ]; then
+    interserve_suffix=" with $(_il_interserve_rainbow "$interserve_label")"
   fi
 fi
 
 # --- Build status line ---
-status_line="[$model$clodex_suffix] $project"
+status_line="[$model$interserve_suffix] $project"
 
 if [ -n "$git_branch" ]; then
   git_display="$(_il_color "$cfg_color_branch" "$git_branch")"

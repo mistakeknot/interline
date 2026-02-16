@@ -38,7 +38,7 @@ The install creates `~/.claude/interline.json` with defaults. Users can customiz
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `colors.clodex` | array or number | `[210,216,228,157,111,183]` | Per-letter rainbow (array) or single color (number) for the Clodex label |
+| `colors.interserve` | array or number | `[210,216,228,157,111,183]` | Per-letter rainbow (array) or single color (number) for the Interserve label |
 | `colors.dispatch` | number | _(none)_ | ANSI 256-color for dispatch status text |
 | `colors.bead` | number | _(none)_ | ANSI 256-color for bead context text |
 | `colors.phase` | number | _(none)_ | ANSI 256-color for workflow phase text |
@@ -46,11 +46,11 @@ The install creates `~/.claude/interline.json` with defaults. Users can customiz
 | `layers.dispatch` | boolean | `true` | Show Codex dispatch state |
 | `layers.bead` | boolean | `true` | Show bead context (ID + phase) |
 | `layers.phase` | boolean | `true` | Show workflow phase from transcript |
-| `layers.clodex` | boolean | `true` | Show clodex mode indicator |
+| `layers.interserve` | boolean | `true` | Show interserve mode indicator |
 | `colors.coordination` | number | `214` | ANSI 256-color for coordination status text |
 | `layers.coordination` | boolean | `true` | Show coordination status from interlock signals (requires `INTERMUTE_AGENT_ID`) |
-| `labels.clodex` | string | `"Clodex"` | Text for the clodex mode rainbow label |
-| `labels.dispatch_prefix` | string | `"Clodex"` | Prefix before dispatch task name |
+| `labels.interserve` | string | `"Interserve"` | Text for the interserve mode rainbow label |
+| `labels.dispatch_prefix` | string | `"Interserve"` | Prefix before dispatch task name |
 | `format.separator` | string | `" \| "` | Separator between status segments |
 | `format.branch_separator` | string | `":"` | Separator between project name and branch |
 
@@ -66,9 +66,9 @@ Disable bead context and make phase labels red:
 }
 ```
 
-Use a single teal color for the Clodex label:
+Use a single teal color for the Interserve label:
 ```json
 {
-  "colors": { "clodex": 44 }
+  "colors": { "interserve": 44 }
 }
 ```

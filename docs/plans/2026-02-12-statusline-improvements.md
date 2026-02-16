@@ -44,9 +44,9 @@ Document the new layer and config options.
 
 ## Non-changes
 
-- Layer 1 (dispatch), Layer 2 (phase), Layer 3 (clodex) — untouched
+- Layer 1 (dispatch), Layer 2 (phase), Layer 3 (interserve) — untouched
 - Install flow — unchanged
-- Rainbow clodex label — unchanged
+- Rainbow interserve label — unchanged
 
 ## Testing
 

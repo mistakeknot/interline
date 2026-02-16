@@ -17,7 +17,7 @@ Reads state from multiple sources:
 2. **Coordination** — multi-agent coordination status from interlock signal files
 3. **Bead context** — all `in_progress` beads with priority, title, and phase
 4. **Workflow phase** — last invoked skill mapped to phase name
-5. **Clodex mode** — passive clodex toggle flag
+5. **Interserve mode** — passive interserve toggle flag
 
 ## Bead Display
 
@@ -39,7 +39,7 @@ All customization lives in `~/.claude/interline.json`. Every field is optional �
 ```json
 {
   "colors": {
-    "clodex": [210, 216, 228, 157, 111, 183],
+    "interserve": [210, 216, 228, 157, 111, 183],
     "priority": [196, 208, 220, 75, 245],
     "dispatch": 214,
     "bead": 117,
@@ -52,12 +52,12 @@ All customization lives in `~/.claude/interline.json`. Every field is optional �
     "bead": true,
     "bead_query": true,
     "phase": true,
-    "clodex": true,
+    "interserve": true,
     "coordination": true
   },
   "labels": {
-    "clodex": "Clodex",
-    "dispatch_prefix": "Clodex"
+    "interserve": "Interserve",
+    "dispatch_prefix": "Interserve"
   },
   "format": {
     "separator": " | ",
@@ -71,7 +71,7 @@ All customization lives in `~/.claude/interline.json`. Every field is optional �
 
 ANSI 256-color codes (0-255).
 
-- `colors.clodex` — array for per-letter rainbow, or number for single color
+- `colors.interserve` — array for per-letter rainbow, or number for single color
 - `colors.priority` — array of 5 colors for P0-P4 (indexed by priority number)
 - `colors.coordination` — number for coordination status text
 - Other color keys — single number
