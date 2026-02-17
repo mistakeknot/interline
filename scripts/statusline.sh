@@ -32,8 +32,8 @@ cfg_title_max=$(_il_cfg '.format.title_max_chars')
 # Apply defaults
 sep="${cfg_sep:- | }"
 branch_sep="${cfg_branch_sep:-:}"
-interserve_label="${cfg_interserve_label:-Interserve}"
-dispatch_prefix="${cfg_dispatch_prefix:-Interserve}"
+interserve_label="${cfg_interserve_label:-Clodex}"
+dispatch_prefix="${cfg_dispatch_prefix:-Clodex}"
 title_max="${cfg_title_max:-30}"
 
 # Default priority colors: P0=red, P1=orange, P2=yellow, P3=blue, P4=gray
@@ -301,7 +301,7 @@ fi
 # --- Layer 3: Check for interserve mode flag (always visible when active) ---
 interserve_suffix=""
 if _il_cfg_bool '.layers.interserve'; then
-  if [ -f "$project_dir/.claude/interserve-toggle.flag" ]; then
+  if [ -f "$project_dir/.claude/clodex-toggle.flag" ]; then
     interserve_suffix=" with $(_il_interserve_rainbow "$interserve_label")"
   fi
 fi
