@@ -1,0 +1,15 @@
+{
+  "module_summary": "Interline provides session state visibility with statusline signals for multi-agent and phase-aware workflows.",
+  "roadmap": {
+    "now": [
+      {"id": "ILNE-N1", "title": "Make statusline updates resilient to high-frequency session transitions.", "priority": "P1"}
+    ],
+    "next": [
+      {"id": "ILNE-N2", "title": "Add intermute-backed file-reservation visibility in the live HUD.", "priority": "P2"},
+      {"id": "ILNE-N3", "title": "Ship lightweight dashboard mode for long-running Codex parallel tasks.", "priority": "P2"},
+      {"id": "ILNE-L1", "title": "Create configurable theme and role-specific statusline layouts.", "priority": "P2"}
+    ],
+    "later": [
+    ]
+  }
+}
