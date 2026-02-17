@@ -38,6 +38,7 @@ title_max="${cfg_title_max:-30}"
 
 # Default priority colors: P0=red, P1=orange, P2=yellow, P3=blue, P4=gray
 _il_priority_defaults=(196 208 220 75 245)
+_il_interband_root="${INTERBAND_ROOT:-$HOME/.interband}"
 
 # Helper: wrap text in ANSI 256-color
 _il_color() {
@@ -68,6 +69,17 @@ _il_truncate() {
   else
     echo "$text"
   fi
+}
+
+# Helper: read field from interband envelope payload.
+_il_interband_payload_field() {
+  local file="$1" jq_field="$2"
+  jq -r \
+    --arg field "$jq_field" \
+    'if ((.version | tostring | startswith("1.")) and (.payload | type == "object"))
+     then (.payload[$field] // empty)
+     else empty
+     end' "$file" 2>/dev/null
 }
 
 # Helper: render interserve label with rainbow or single color
@@ -122,14 +134,21 @@ fi
 # --- Layer 1: Check for active Codex dispatch ---
 dispatch_label=""
 if _il_cfg_bool '.layers.dispatch'; then
-  for state_file in /tmp/clavain-dispatch-*.json; do
+  for state_file in /tmp/clavain-dispatch-*.json "$_il_interband_root"/clavain/dispatch/*.json; do
     [ -f "$state_file" ] || continue
     # Verify the owning process is still alive
-    pid="${state_file##*-}"
+    pid="${state_file##*/}"
     pid="${pid%.json}"
+    pid="${pid##*-}"
     if kill -0 "$pid" 2>/dev/null; then
-      name=$(jq -r '.name // "codex"' "$state_file" 2>/dev/null)
-      activity=$(jq -r '.activity // empty' "$state_file" 2>/dev/null)
+      name=$(_il_interband_payload_field "$state_file" "name")
+      activity=$(_il_interband_payload_field "$state_file" "activity")
+      if [ -z "$name" ]; then
+        name=$(jq -r '.name // "codex"' "$state_file" 2>/dev/null)
+      fi
+      if [ -z "$activity" ]; then
+        activity=$(jq -r '.activity // empty' "$state_file" 2>/dev/null)
+      fi
       if [ -n "$activity" ] && [ "$activity" != "starting" ] && [ "$activity" != "done" ]; then
         dispatch_label="$(_il_color "$cfg_color_dispatch" "${dispatch_prefix}: ${name} (${activity})")"
       else
@@ -200,8 +219,22 @@ if [ -z "$dispatch_label" ] && [ -z "$coord_label" ] && _il_cfg_bool '.layers.be
   sideband_id=""
   sideband_phase=""
   if [ -n "$session_id" ]; then
-    bead_file="/tmp/clavain-bead-${session_id}.json"
+    bead_file="$_il_interband_root/interphase/bead/${session_id}.json"
     if [ -f "$bead_file" ]; then
+      file_age=$(( $(date +%s) - $(stat -c %Y "$bead_file" 2>/dev/null || echo 0) ))
+      if [ "$file_age" -lt 86400 ]; then
+        sideband_id=$(_il_interband_payload_field "$bead_file" "id")
+        sideband_phase=$(_il_interband_payload_field "$bead_file" "phase")
+      fi
+    fi
+
+    # Backward-compatible fallback to legacy sideband path.
+    if [ -z "$sideband_id" ] || [ -z "$sideband_phase" ]; then
+      bead_file="/tmp/clavain-bead-${session_id}.json"
+    else
+      bead_file=""
+    fi
+    if [ -n "$bead_file" ] && [ -f "$bead_file" ]; then
       file_age=$(( $(date +%s) - $(stat -c %Y "$bead_file" 2>/dev/null || echo 0) ))
       if [ "$file_age" -lt 86400 ]; then
         sideband_id=$(jq -r '.id // empty' "$bead_file" 2>/dev/null)

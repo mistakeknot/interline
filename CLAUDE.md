@@ -6,9 +6,9 @@ Dynamic statusline renderer for Claude Code. Shows workflow phase, bead context,
 
 Reads state from multiple sources:
 - **bd CLI** queries `in_progress` beads directly for title, priority, and ID
-- **interphase** writes `/tmp/clavain-bead-${session_id}.json` (bead lifecycle phase)
-- **Clavain** writes `/tmp/clavain-dispatch-$$.json` (Codex dispatch state)
-- **interlock** writes `/var/run/intermute/signals/{project-slug}-{agent-id}.jsonl` (coordination signals)
+- **interphase** writes `~/.interband/interphase/bead/${session_id}.json` (legacy fallback: `/tmp/clavain-bead-${session_id}.json`)
+- **Clavain** writes `/tmp/clavain-dispatch-$$.json` plus structured sideband at `~/.interband/clavain/dispatch/${pid}.json`
+- **interlock** writes `/var/run/intermute/signals/{project-slug}-{agent-id}.jsonl` (coordination stream) and mirrors latest signal to `~/.interband/interlock/coordination/{project-slug}-{agent-id}.json`
 - **Transcript** scanning detects active workflow phase from Skill invocations
 
 ## Priority Layers
@@ -56,8 +56,8 @@ All customization lives in `~/.claude/interline.json`. Every field is optional â
     "coordination": true
   },
   "labels": {
-    "interserve": "Interserve",
-    "dispatch_prefix": "Interserve"
+    "interserve": "Clodex",
+    "dispatch_prefix": "Clodex"
   },
   "format": {
     "separator": " | ",
