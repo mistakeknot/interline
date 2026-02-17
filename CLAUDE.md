@@ -8,7 +8,7 @@ Reads state from multiple sources:
 - **bd CLI** queries `in_progress` beads directly for title, priority, and ID
 - **interphase** writes `~/.interband/interphase/bead/${session_id}.json` (legacy fallback: `/tmp/clavain-bead-${session_id}.json`)
 - **Clavain** writes `/tmp/clavain-dispatch-$$.json` plus structured sideband at `~/.interband/clavain/dispatch/${pid}.json`
-- **interlock** writes `/var/run/intermute/signals/{project-slug}-{agent-id}.jsonl` (coordination stream) and mirrors latest signal to `~/.interband/interlock/coordination/{project-slug}-{agent-id}.json`
+- **interlock** writes `/var/run/intermute/signals/{project-slug}-{agent-id}.jsonl` and mirrors latest signal to `~/.interband/interlock/coordination/{project-slug}-{agent-id}.json` (interline reads interband first, then falls back to JSONL)
 - **Transcript** scanning detects active workflow phase from Skill invocations
 
 ## Priority Layers

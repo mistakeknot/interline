@@ -167,25 +167,44 @@ coord_label=""
 if [ -z "$dispatch_label" ] && _il_cfg_bool '.layers.coordination'; then
   if [ -n "${INTERMUTE_AGENT_ID:-}" ]; then
     _il_signal_dir="/var/run/intermute/signals"
+    _il_coord_dir="$_il_interband_root/interlock/coordination"
     _il_project_slug="$project"
 
-    # Count active agents by counting signal files for this project
+    # Count active agents from both interband snapshots and legacy JSONL streams.
     _il_agent_count=0
+    _il_agent_count_interband=0
+    _il_agent_count_legacy=0
+    if [ -d "$_il_coord_dir" ]; then
+      _il_agent_count_interband=$(ls -1 "${_il_coord_dir}/${_il_project_slug}"-*.json 2>/dev/null | wc -l)
+    fi
     if [ -d "$_il_signal_dir" ]; then
-      _il_agent_count=$(ls -1 "${_il_signal_dir}/${_il_project_slug}"-*.jsonl 2>/dev/null | wc -l)
+      _il_agent_count_legacy=$(ls -1 "${_il_signal_dir}/${_il_project_slug}"-*.jsonl 2>/dev/null | wc -l)
+    fi
+    if [ "${_il_agent_count_interband:-0}" -gt "${_il_agent_count_legacy:-0}" ]; then
+      _il_agent_count="$_il_agent_count_interband"
+    else
+      _il_agent_count="$_il_agent_count_legacy"
     fi
 
-    # Read this agent's signal file for latest event
-    _il_signal_file="${_il_signal_dir}/${_il_project_slug}-${INTERMUTE_AGENT_ID}.jsonl"
+    # Read this agent's latest signal snapshot from interband first.
     _il_signal_text=""
-    if [ -f "$_il_signal_file" ]; then
-      _il_latest=$(tail -1 "$_il_signal_file" 2>/dev/null)
-      if [ -n "$_il_latest" ]; then
-        _il_sig_version=$(echo "$_il_latest" | jq -r '.version // 0' 2>/dev/null)
-        if [ "$_il_sig_version" = "1" ]; then
-          _il_signal_text=$(echo "$_il_latest" | jq -r '.text // empty' 2>/dev/null)
-        else
-          echo "interline: unknown signal schema version $_il_sig_version, skipping" >&2
+    _il_signal_file_interband="${_il_coord_dir}/${_il_project_slug}-${INTERMUTE_AGENT_ID}.json"
+    if [ -f "$_il_signal_file_interband" ]; then
+      _il_signal_text=$(_il_interband_payload_field "$_il_signal_file_interband" "text")
+    fi
+
+    # Backward-compatible fallback: read legacy JSONL signal stream.
+    if [ -z "$_il_signal_text" ]; then
+      _il_signal_file="${_il_signal_dir}/${_il_project_slug}-${INTERMUTE_AGENT_ID}.jsonl"
+      if [ -f "$_il_signal_file" ]; then
+        _il_latest=$(tail -1 "$_il_signal_file" 2>/dev/null)
+        if [ -n "$_il_latest" ]; then
+          _il_sig_version=$(echo "$_il_latest" | jq -r '.version // 0' 2>/dev/null)
+          if [ "$_il_sig_version" = "1" ]; then
+            _il_signal_text=$(echo "$_il_latest" | jq -r '.text // empty' 2>/dev/null)
+          else
+            echo "interline: unknown signal schema version $_il_sig_version, skipping" >&2
+          fi
         fi
       fi
     fi
