@@ -27,6 +27,9 @@ cfg_color_bead=$(_il_cfg '.colors.bead')
 cfg_color_phase=$(_il_cfg '.colors.phase')
 cfg_color_branch=$(_il_cfg '.colors.branch')
 cfg_color_coordination=$(_il_cfg '.colors.coordination')
+cfg_color_context=$(_il_cfg '.colors.context')
+cfg_color_context_warn=$(_il_cfg '.colors.context_warn')
+cfg_color_context_critical=$(_il_cfg '.colors.context_critical')
 cfg_title_max=$(_il_cfg '.format.title_max_chars')
 
 # Apply defaults
@@ -124,6 +127,7 @@ project_dir=$(echo "$input" | jq -r '.workspace.project_dir // .workspace.curren
 project=$(basename "$project_dir")
 transcript=$(echo "$input" | jq -r '.transcript_path // empty')
 session_id=$(echo "$input" | jq -r '.session_id // empty')
+context_pct=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
 
 # Get git branch
 git_branch=""
@@ -358,8 +362,22 @@ if _il_cfg_bool '.layers.interserve'; then
   fi
 fi
 
+# --- Build context window % display ---
+context_display=""
+if [ -n "$context_pct" ] && _il_cfg_bool '.layers.context'; then
+  pct_int="${context_pct%.*}"  # strip decimal
+  if [ "${pct_int:-0}" -ge 95 ]; then
+    ctx_color="${cfg_color_context_critical:-196}"
+  elif [ "${pct_int:-0}" -ge 80 ]; then
+    ctx_color="${cfg_color_context_warn:-220}"
+  else
+    ctx_color="${cfg_color_context:-245}"
+  fi
+  context_display=" · $(_il_color "$ctx_color" "${pct_int}%")"
+fi
+
 # --- Build status line ---
-status_line="[$model$interserve_suffix] $project"
+status_line="[$model$interserve_suffix$context_display] $project"
 
 if [ -n "$git_branch" ]; then
   git_display="$(_il_color "$cfg_color_branch" "$git_branch")"

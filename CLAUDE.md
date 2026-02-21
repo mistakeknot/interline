@@ -45,7 +45,10 @@ All customization lives in `~/.claude/interline.json`. Every field is optional �
     "bead": 117,
     "phase": 245,
     "branch": 244,
-    "coordination": 214
+    "coordination": 214,
+    "context": 245,
+    "context_warn": 220,
+    "context_critical": 196
   },
   "layers": {
     "dispatch": true,
@@ -53,7 +56,8 @@ All customization lives in `~/.claude/interline.json`. Every field is optional �
     "bead_query": true,
     "phase": true,
     "interserve": true,
-    "coordination": true
+    "coordination": true,
+    "context": true
   },
   "labels": {
     "interserve": "Clodex",
@@ -74,6 +78,9 @@ ANSI 256-color codes (0-255).
 - `colors.interserve` — array for per-letter rainbow, or number for single color
 - `colors.priority` — array of 5 colors for P0-P4 (indexed by priority number)
 - `colors.coordination` — number for coordination status text
+- `colors.context` — context window % at normal usage (default 245/gray)
+- `colors.context_warn` — context window % at 80%+ usage (default 220/yellow)
+- `colors.context_critical` — context window % at 95%+ usage (default 196/red)
 - Other color keys — single number
 
 Omit a color key to render that element without color (plain text).
@@ -84,6 +91,7 @@ Set any layer to `false` to hide it. All default to `true`.
 
 - `layers.bead_query` — controls whether `bd list` is queried for live bead data. Disable to rely only on sideband files.
 - `layers.coordination` — controls whether coordination status from interlock signal files is shown. Only active when `INTERMUTE_AGENT_ID` env var is set.
+- `layers.context` — controls whether context window usage % is shown inside the model brackets. Reads `context_window.used_percentage` from stdin JSON.
 
 ### Agent guidelines
 
