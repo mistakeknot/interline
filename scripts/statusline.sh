@@ -376,6 +376,49 @@ if [ -n "$context_pct" ] && _il_cfg_bool '.layers.context'; then
   context_display=" · $(_il_color "$ctx_color" "${pct_int}%")"
 fi
 
+# --- Layer 4: Context pressure from intercheck interband signal ---
+pressure_label=""
+if _il_cfg_bool '.layers.pressure'; then
+  if [ -n "$session_id" ]; then
+    _il_pressure_file="$_il_interband_root/intercheck/pressure/${session_id}.json"
+    if [ -f "$_il_pressure_file" ]; then
+      _il_pressure_level=$(_il_interband_payload_field "$_il_pressure_file" "level")
+      if [ -n "$_il_pressure_level" ] && [ "$_il_pressure_level" != "green" ]; then
+        case "$_il_pressure_level" in
+          yellow)  _il_pressure_color="${cfg_color_context_warn:-220}" ;;
+          orange)  _il_pressure_color="208" ;;
+          red)     _il_pressure_color="${cfg_color_context_critical:-196}" ;;
+          *)       _il_pressure_color="245" ;;
+        esac
+        pressure_label="$(_il_color "$_il_pressure_color" "$_il_pressure_level")"
+      fi
+    fi
+  fi
+fi
+
+# --- Layer 5: Budget alert from interstat interband signal ---
+budget_label=""
+if _il_cfg_bool '.layers.budget'; then
+  if [ -n "$session_id" ]; then
+    _il_budget_file="$_il_interband_root/interstat/budget/${session_id}.json"
+    if [ -f "$_il_budget_file" ]; then
+      _il_budget_pct=$(_il_interband_payload_field "$_il_budget_file" "pct_consumed")
+      if [ -n "$_il_budget_pct" ]; then
+        _il_budget_int="${_il_budget_pct%.*}"
+        # Guard against non-numeric values (e.g., jq returning "null")
+        case "$_il_budget_int" in ''|*[!0-9]*) _il_budget_int=0 ;; esac
+        if [ "${_il_budget_int:-0}" -ge 80 ]; then
+          _il_budget_color="${cfg_color_context_critical:-196}"
+          budget_label="$(_il_color "$_il_budget_color" "${_il_budget_int}% budget")"
+        elif [ "${_il_budget_int:-0}" -ge 50 ]; then
+          _il_budget_color="${cfg_color_context_warn:-220}"
+          budget_label="$(_il_color "$_il_budget_color" "${_il_budget_int}% budget")"
+        fi
+      fi
+    fi
+  fi
+fi
+
 # --- Build status line ---
 status_line="[$model$interserve_suffix$context_display] $project"
 
@@ -397,6 +440,14 @@ else
   if [ -n "$phase_label" ]; then
     status_line="$status_line${sep}$phase_label"
   fi
+fi
+
+# Append ambient indicators (always visible, independent of dispatch/coord/bead)
+if [ -n "$pressure_label" ]; then
+  status_line="$status_line${sep}$pressure_label"
+fi
+if [ -n "$budget_label" ]; then
+  status_line="$status_line${sep}$budget_label"
 fi
 
 echo -e "$status_line"
