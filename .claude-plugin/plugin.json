@@ -12,5 +12,9 @@
     "workflow",
     "display",
     "context"
+  ],
+  "hooks": "./hooks/hooks.json",
+  "commands": [
+    "./commands/statusline-setup.md"
   ]
 }
