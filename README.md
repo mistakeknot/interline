@@ -10,6 +10,14 @@ Priority coloring makes triage visible at a glance: P0 red, P1 orange, P2 yellow
 
 ## Installation
 
+First, add the [interagency marketplace](https://github.com/mistakeknot/interagency-marketplace) (one-time setup):
+
+```bash
+/plugin marketplace add mistakeknot/interagency-marketplace
+```
+
+Then install the plugin:
+
 ```bash
 /plugin install interline
 ```
