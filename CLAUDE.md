@@ -53,15 +53,19 @@ All customization lives in `~/.claude/interline.json`. Every field is optional �
   "layers": {
     "dispatch": true,
     "bead": true,
-    "bead_query": true,
+    "bead_query": false,
     "phase": true,
     "interserve": true,
-    "coordination": true,
-    "context": true
+    "interserve_always": true,
+    "coordination": false,
+    "context": true,
+    "pressure": true,
+    "budget": true
   },
   "labels": {
-    "interserve": "Clodex",
-    "dispatch_prefix": "Clodex"
+    "interserve": "Clavain",
+    "interserve_version_auto": true,
+    "dispatch_prefix": "Dispatch"
   },
   "format": {
     "separator": " | ",
@@ -92,6 +96,8 @@ Set any layer to `false` to hide it. All default to `true`.
 - `layers.bead_query` — controls whether `bd list` is queried for live bead data. Disable to rely only on sideband files.
 - `layers.coordination` — controls whether coordination status from interlock signal files is shown. Only active when `INTERMUTE_AGENT_ID` env var is set.
 - `layers.context` — controls whether context window usage % is shown inside the model brackets. Reads `context_window.used_percentage` from stdin JSON.
+- `layers.interserve_always` — when true, the branding label (e.g. "Clavain") is always visible, not gated by clodex-toggle.flag.
+- `labels.interserve_version_auto` — when true, auto-detects Clavain version from plugin cache and appends "vX.Y.Z" to the label.
 
 ### Agent guidelines
 

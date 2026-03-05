@@ -24,14 +24,19 @@ if [ ! -f "$CONFIG" ]; then
   "layers": {
     "dispatch": true,
     "bead": true,
-    "bead_query": true,
+    "bead_query": false,
     "phase": true,
     "interserve": true,
-    "coordination": true
+    "interserve_always": true,
+    "coordination": false,
+    "context": true,
+    "pressure": true,
+    "budget": true
   },
   "labels": {
-    "interserve": "Interserve",
-    "dispatch_prefix": "Interserve"
+    "interserve": "Clavain",
+    "interserve_version_auto": true,
+    "dispatch_prefix": "Dispatch"
   },
   "format": {
     "separator": " | ",

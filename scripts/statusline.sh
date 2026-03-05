@@ -354,11 +354,32 @@ if [ -z "$dispatch_label" ] && [ -z "$coord_label" ] && _il_cfg_bool '.layers.ph
   fi
 fi
 
-# --- Layer 3: Check for interserve mode flag (always visible when active) ---
+# --- Layer 3: Branding label (toggle-gated or always-on) ---
 interserve_suffix=""
 if _il_cfg_bool '.layers.interserve'; then
-  if [ -f "$project_dir/.claude/clodex-toggle.flag" ]; then
-    interserve_suffix=" with $(_il_interserve_rainbow "$interserve_label")"
+  _il_always=$(_il_cfg '.layers.interserve_always')
+  _il_show=false
+  if [ "$_il_always" = "true" ]; then
+    _il_show=true
+  elif [ -f "$project_dir/.claude/clodex-toggle.flag" ]; then
+    _il_show=true
+  fi
+  if [ "$_il_show" = "true" ]; then
+    _il_version_label=""
+    _il_version=$(_il_cfg '.labels.interserve_version')
+    if [ -z "$_il_version" ]; then
+      # Auto-detect from plugin cache if labels.interserve_version_auto is true
+      if [ "$(_il_cfg '.labels.interserve_version_auto')" = "true" ]; then
+        _il_pjson=$(ls -t ~/.claude/plugins/cache/*/clavain/*/.claude-plugin/plugin.json 2>/dev/null | head -1)
+        if [ -n "$_il_pjson" ]; then
+          _il_version=$(jq -r '.version // empty' "$_il_pjson" 2>/dev/null)
+        fi
+      fi
+    fi
+    if [ -n "$_il_version" ]; then
+      _il_version_label=" v${_il_version}"
+    fi
+    interserve_suffix=" with $(_il_interserve_rainbow "$interserve_label")$(_il_color "${cfg_color_phase:-245}" "$_il_version_label")"
   fi
 fi
 
