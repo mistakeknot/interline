@@ -1,0 +1,101 @@
+---
+name: statusline-customize
+description: Interactively customize your statusline — toggle layers, pick colors, set labels, and preview the result
+allowed-tools: [Bash, Read, Edit, Write, AskUserQuestion]
+---
+
+# Statusline Customization
+
+Walk the user through configuring their interline statusline interactively. Read existing config, present choices, write updates, and preview.
+
+## Prerequisites
+
+1. Check that `~/.claude/statusline.sh` exists. If not, tell the user to run `/interline:statusline-setup` first.
+2. Read `~/.claude/interline.json` (create with `{}` if missing). This is the source of truth for all customization.
+
+## Interactive Flow
+
+Present each section as an `AskUserQuestion` call. Always show the **current value** in the option descriptions so the user knows what they have. Skip sections the user isn't interested in.
+
+### Step 1: Which sections to configure?
+
+Ask which areas they want to customize (multiSelect):
+- **Layers** — toggle which status segments are visible (dispatch, bead, phase, interserve, coordination, context, pressure, budget)
+- **Colors** — change ANSI 256 colors for each segment
+- **Labels** — rename the interserve/dispatch prefix text
+- **Format** — separator style, branch separator, title truncation length
+
+### Step 2: Layer toggles (if selected)
+
+For each layer, show its current state (enabled/disabled) and what it does:
+
+| Layer | Purpose |
+|-------|---------|
+| `dispatch` | Active Codex dispatch task name and status |
+| `bead` | In-progress bead IDs, titles, and priorities |
+| `bead_query` | Live `bd list` queries (disable for speed if bd is slow) |
+| `phase` | Workflow phase detected from transcript (Brainstorming, Executing, etc.) |
+| `interserve` | Rainbow "Interserve" label when clodex-toggle is active |
+| `coordination` | Multi-agent coordination status from interlock |
+| `context` | Context window usage percentage inside model brackets |
+| `pressure` | Context pressure indicator from intercheck |
+| `budget` | Budget consumption percentage from interstat |
+
+Use multiSelect to let them pick which layers to **disable** (all default to enabled). Layers not selected remain enabled.
+
+### Step 3: Colors (if selected)
+
+Show a reference of useful ANSI 256 colors:
+- Reds: 196 (bright), 160 (dark), 203 (salmon)
+- Oranges: 208, 214, 215
+- Yellows: 220, 226, 228
+- Greens: 34, 46, 82, 157
+- Blues: 33, 75, 111, 117
+- Purples: 141, 183, 177
+- Grays: 240, 244, 245, 250
+
+For each color key, show the current value and let them type a new one. The color keys are:
+- `dispatch`, `bead`, `phase`, `branch`, `coordination`
+- `context`, `context_warn`, `context_critical`
+- `priority` (array of 5: P0-P4)
+- `interserve` (array for rainbow, or single number)
+
+### Step 4: Labels (if selected)
+
+Ask for custom text for:
+- `labels.interserve` — the rainbow-colored label shown when interserve mode is active (default: "Interserve")
+- `labels.dispatch_prefix` — prefix before dispatch task name (default: "Interserve")
+
+### Step 5: Format (if selected)
+
+Ask about:
+- `format.separator` — between segments (default: ` | `)
+- `format.branch_separator` — between project and branch (default: `:`)
+- `format.title_max_chars` — max bead title length before truncation (default: 30)
+
+## Writing Config
+
+After each section, merge changes into `~/.claude/interline.json`. Read the file, parse JSON, update only the changed keys, write back. Never overwrite keys the user didn't change.
+
+Use Python for the merge:
+```bash
+python3 -c "
+import json, sys
+path = '$HOME/.claude/interline.json'
+try:
+    with open(path) as f: cfg = json.load(f)
+except: cfg = {}
+# merge updates here
+with open(path, 'w') as f: json.dump(cfg, f, indent=2); f.write('\n')
+"
+```
+
+## Preview
+
+After all changes, generate a preview by running the statusline with test input:
+
+```bash
+echo '{"model":{"display_name":"Opus 4.6"},"workspace":{"current_dir":"'$(pwd)'"},"session_id":"test-preview","context_window":{"used_percentage":42.5}}' | ~/.claude/statusline.sh
+```
+
+Show the output and explain what each segment means. Remind the user they need to restart their session for changes to take full effect in the live statusline.
