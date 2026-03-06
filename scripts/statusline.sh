@@ -30,6 +30,7 @@ cfg_color_coordination=$(_il_cfg '.colors.coordination')
 cfg_color_context=$(_il_cfg '.colors.context')
 cfg_color_context_warn=$(_il_cfg '.colors.context_warn')
 cfg_color_context_critical=$(_il_cfg '.colors.context_critical')
+cfg_color_delegation=$(_il_cfg '.colors.delegation')
 cfg_title_max=$(_il_cfg '.format.title_max_chars')
 
 # Apply defaults
@@ -440,6 +441,27 @@ if _il_cfg_bool '.layers.budget'; then
   fi
 fi
 
+# --- Layer 6: Delegation stats from interspect DB ---
+delegation_label=""
+if _il_cfg_bool '.layers.delegation'; then
+  if [ -n "$session_id" ] && [ -n "$project_dir" ]; then
+    _il_deleg_db="${project_dir}/.clavain/interspect/interspect.db"
+    if [ -f "$_il_deleg_db" ] && command -v sqlite3 > /dev/null 2>&1; then
+      _il_deleg_row=$(sqlite3 "$_il_deleg_db" \
+        "SELECT COUNT(*), SUM(CASE WHEN json_extract(context,'\$.verdict') IN ('pass','CLEAN') THEN 1 ELSE 0 END) FROM evidence WHERE event='delegation_outcome' AND source='codex-delegate' AND session_id='${session_id}';" 2>/dev/null)
+      if [ -n "$_il_deleg_row" ]; then
+        _il_deleg_total="${_il_deleg_row%%|*}"
+        _il_deleg_pass="${_il_deleg_row##*|}"
+        : "${_il_deleg_total:=0}" "${_il_deleg_pass:=0}"
+        if [ "${_il_deleg_total:-0}" -gt 0 ]; then
+          _il_deleg_pct=$(( _il_deleg_pass * 100 / _il_deleg_total ))
+          delegation_label="$(_il_color "${cfg_color_delegation:-157}" "Dx: ${_il_deleg_pass}/${_il_deleg_total} (${_il_deleg_pct}%)")"
+        fi
+      fi
+    fi
+  fi
+fi
+
 # --- Build status line ---
 status_line="[$model$interserve_suffix$context_display] $project"
 
@@ -469,6 +491,9 @@ if [ -n "$pressure_label" ]; then
 fi
 if [ -n "$budget_label" ]; then
   status_line="$status_line${sep}$budget_label"
+fi
+if [ -n "$delegation_label" ]; then
+  status_line="$status_line${sep}$delegation_label"
 fi
 
 echo -e "$status_line"
