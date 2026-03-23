@@ -49,7 +49,22 @@ CONF
 fi
 
 # Configure settings.json
-python3 -c "
+# Use jq if available, otherwise try python3 then python (Windows compat)
+SETTINGS_JSON="$HOME/.claude/settings.json"
+if command -v jq &>/dev/null; then
+    [ ! -f "$SETTINGS_JSON" ] && echo '{}' > "$SETTINGS_JSON"
+    tmp=$(mktemp)
+    jq --arg cmd "$HOME/.claude/statusline.sh" '.statusLine = {"type": "command", "command": $cmd}' "$SETTINGS_JSON" > "$tmp"
+    mv "$tmp" "$SETTINGS_JSON"
+else
+    PYTHON_CMD=""
+    if command -v python3 &>/dev/null; then
+        PYTHON_CMD="python3"
+    elif command -v python &>/dev/null; then
+        PYTHON_CMD="python"
+    fi
+    if [ -n "$PYTHON_CMD" ]; then
+        $PYTHON_CMD -c "
 import json, os
 
 path = os.path.expanduser('~/.claude/settings.json')
@@ -65,6 +80,10 @@ with open(path, 'w') as f:
     json.dump(s, f, indent=2)
     f.write('\n')
 "
+    else
+        echo "Warning: jq or python required to configure settings.json" >&2
+    fi
+fi
 
 echo "Statusline installed at $TARGET"
 echo "Settings updated: ~/.claude/settings.json"
