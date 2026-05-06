@@ -24,26 +24,15 @@ _il_bd_real() { command bd "$@"; }
 
 _il_bd_log() { [ "${BD_LANE_DEBUG:-0}" = "1" ] && echo "bd-lane: $*" >&2 || true; }
 
-# Extract a lane from a tmux-style session name.
-# Recognized: ...[[[<lane>@..., ...]]]<lane>|..., ...[[[<lane>$ (no terminator).
-# The trailing terminator is optional, so sessions named without an `@<model>`
-# suffix (e.g. `[warp[[sylveste[[[feedback`) still resolve.
-# Bare alphanumeric session names are also returned as-is.
-_il_bd_parse_session_name() {
-  local sn="$1"
-  [ -z "$sn" ] && return 1
-  local cand
-  cand=$(echo "$sn" | sed -E 's/.*[][]{3,}([a-z][a-z0-9_-]+)([@|].*)?$/\1/')
-  if [ "$cand" != "$sn" ] && [[ "$cand" =~ ^[a-z][a-z0-9_-]+$ ]]; then
-    echo "$cand"
-    return 0
-  fi
-  if [[ "$sn" =~ ^[a-z][a-z0-9_-]+$ ]]; then
-    echo "$sn"
-    return 0
-  fi
-  return 1
-}
+# Source shared lane helpers. Resolved relative to this file so both
+# direct-source from .bashrc and arbitrary install locations work.
+_il_bd_libdir="$(dirname "${BASH_SOURCE[0]}")"
+if [ -f "${_il_bd_libdir}/lib-lane.sh" ]; then
+  source "${_il_bd_libdir}/lib-lane.sh"
+else
+  echo "bd-lane: missing required helper ${_il_bd_libdir}/lib-lane.sh — wrapper inert" >&2
+fi
+unset _il_bd_libdir
 
 # Check if a lane has at least one existing bead. Returns 0 if real, 1 if phantom.
 # Phantom = the resolved lane name has no labeled beads anywhere in the project,
@@ -55,9 +44,15 @@ _il_bd_lane_has_beads() {
   # timeout uses PATH lookup (not shell function lookup), so this hits the
   # bd binary directly, not the wrapper function. `command` would be wrong
   # here because timeout can't run shell builtins.
+  local out
+  out=$(timeout 2 bd list --label="$lane" --limit 1 --json --quiet 2>/dev/null)
+  local rc=$?
+  # If bd failed (no db reachable from cwd, timeout, etc.) we can't verify —
+  # treat as inconclusive and return success so the wrapper doesn't false-positive
+  # phantom warnings when running from a nested git repo without BEADS_DIR set.
+  [ "$rc" -ne 0 ] && return 0
   local count
-  count=$(timeout 2 bd list --label="$lane" --limit 1 --json --quiet 2>/dev/null \
-    | jq 'length' 2>/dev/null)
+  count=$(echo "$out" | jq 'length' 2>/dev/null)
   [ "${count:-0}" -gt 0 ]
 }
 
@@ -90,29 +85,9 @@ _il_bd_warn_phantom() {
 }
 
 # Detect lane from sideband file, then tmux. Echoes lane and source name.
+# Thin wrapper around the shared resolver in lib-lane.sh.
 _il_bd_detect_lane_local() {
-  local sid="${CLAUDE_SESSION_ID:-}"
-  if [ -n "$sid" ]; then
-    local sf="${INTERBAND_ROOT:-$HOME/.interband}/interphase/lane/${sid}.json"
-    if [ -f "$sf" ]; then
-      local lane
-      lane=$(jq -r '.payload.lane // empty' "$sf" 2>/dev/null)
-      if [ -n "$lane" ]; then
-        echo "$lane sideband"
-        return 0
-      fi
-    fi
-  fi
-  if [ -n "${TMUX:-}" ] && command -v tmux > /dev/null 2>&1; then
-    local sn
-    sn=$(tmux display-message -p '#S' 2>/dev/null)
-    local lane
-    if lane=$(_il_bd_parse_session_name "$sn"); then
-      echo "$lane tmux"
-      return 0
-    fi
-  fi
-  return 1
+  _il_lane_resolve
 }
 
 # Build the candidate-lane vocabulary for Haiku classification.
@@ -126,7 +101,7 @@ _il_bd_lane_vocab() {
   if command -v tmux > /dev/null 2>&1; then
     while IFS= read -r sn; do
       local cand
-      if cand=$(_il_bd_parse_session_name "$sn"); then
+      if cand=$(_il_lane_parse_session_name "$sn"); then
         lanes="${lanes}${cand},"
       fi
     done < <(tmux list-sessions -F '#S' 2>/dev/null | sort -u)
@@ -273,7 +248,8 @@ bd() {
 # functions through the BASH_FUNC_<name>%% env vars.
 export -f bd \
   _il_bd_real _il_bd_log \
-  _il_bd_parse_session_name _il_bd_detect_lane_local \
+  _il_bd_detect_lane_local \
   _il_bd_lane_vocab _il_bd_classify_haiku \
   _il_bd_scan_args \
-  _il_bd_lane_has_beads _il_bd_lane_suggestions _il_bd_warn_phantom 2>/dev/null || true
+  _il_bd_lane_has_beads _il_bd_lane_suggestions _il_bd_warn_phantom \
+  _il_lane_parse_session_name _il_lane_tmux_session_name _il_lane_resolve 2>/dev/null || true

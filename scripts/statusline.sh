@@ -144,28 +144,28 @@ transcript=$(echo "$input" | jq -r '.transcript_path // empty')
 session_id=$(echo "$input" | jq -r '.session_id // empty')
 context_pct=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
 
-# Detect this session's lane: sideband override → tmux session name
-# Used to scope `bd ready` filtering so each tmux pane shows a different next-bead.
+# Detect this session's lane via the shared resolver (sideband → tmux name).
+# Look for lib-lane.sh next to this script first (repo install), falling back
+# to the canonical interline path (deployed-copy install at ~/.claude/).
+# CLAUDE_SESSION_ID isn't always exported into the statusline runner, so pass
+# the session_id we extracted from the JSON input through the env explicitly.
 session_lane=""
-if [ -n "$session_id" ]; then
-  _lane_file="$_il_interband_root/interphase/lane/${session_id}.json"
-  if [ -f "$_lane_file" ]; then
-    session_lane=$(_il_interband_payload_field "$_lane_file" "lane")
+_il_lane_lib=""
+for _il_lane_candidate in \
+  "$(dirname "${BASH_SOURCE[0]}")/lib-lane.sh" \
+  "$HOME/projects/Sylveste/interverse/interline/scripts/lib-lane.sh"
+do
+  if [ -f "$_il_lane_candidate" ]; then
+    _il_lane_lib="$_il_lane_candidate"
+    break
   fi
+done
+if [ -n "$_il_lane_lib" ]; then
+  source "$_il_lane_lib"
+  _resolved=$(CLAUDE_SESSION_ID="${CLAUDE_SESSION_ID:-$session_id}" _il_lane_resolve 2>/dev/null)
+  session_lane="${_resolved% *}"
 fi
-if [ -z "$session_lane" ] && [ -n "$TMUX" ] && command -v tmux > /dev/null 2>&1; then
-  _tmux_session=$(tmux display-message -p '#S' 2>/dev/null)
-  if [ -n "$_tmux_session" ]; then
-    # Pattern: ...[[[<lane>@..., ...]]]<lane>|..., or ...[[[<lane>$ (no terminator).
-    # Trailing terminator is optional so sessions without @<model> suffix still resolve.
-    _candidate=$(echo "$_tmux_session" | sed -E 's/.*[][]{3,}([a-z][a-z0-9_-]+)([@|].*)?$/\1/')
-    if [ "$_candidate" != "$_tmux_session" ] && [[ "$_candidate" =~ ^[a-z][a-z0-9_-]+$ ]]; then
-      session_lane="$_candidate"
-    elif [[ "$_tmux_session" =~ ^[a-z][a-z0-9_-]+$ ]]; then
-      session_lane="$_tmux_session"
-    fi
-  fi
-fi
+unset _il_lane_lib _il_lane_candidate _resolved
 
 # Get git branch
 git_branch=""
