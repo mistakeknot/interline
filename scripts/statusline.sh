@@ -156,8 +156,9 @@ fi
 if [ -z "$session_lane" ] && [ -n "$TMUX" ] && command -v tmux > /dev/null 2>&1; then
   _tmux_session=$(tmux display-message -p '#S' 2>/dev/null)
   if [ -n "$_tmux_session" ]; then
-    # Pattern: ...[[[<lane>@... or ...]]]<lane>@... (also `|` separator)
-    _candidate=$(echo "$_tmux_session" | sed -E 's/.*[][]{3,}([a-z][a-z0-9_-]+)[@|].*/\1/')
+    # Pattern: ...[[[<lane>@..., ...]]]<lane>|..., or ...[[[<lane>$ (no terminator).
+    # Trailing terminator is optional so sessions without @<model> suffix still resolve.
+    _candidate=$(echo "$_tmux_session" | sed -E 's/.*[][]{3,}([a-z][a-z0-9_-]+)([@|].*)?$/\1/')
     if [ "$_candidate" != "$_tmux_session" ] && [[ "$_candidate" =~ ^[a-z][a-z0-9_-]+$ ]]; then
       session_lane="$_candidate"
     elif [[ "$_tmux_session" =~ ^[a-z][a-z0-9_-]+$ ]]; then

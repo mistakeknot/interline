@@ -25,13 +25,15 @@ _il_bd_real() { command bd "$@"; }
 _il_bd_log() { [ "${BD_LANE_DEBUG:-0}" = "1" ] && echo "bd-lane: $*" >&2 || true; }
 
 # Extract a lane from a tmux-style session name.
-# Recognized: ...[[[<lane>@... or ...]]]<lane>@... or ...[[[<lane>|... etc.
+# Recognized: ...[[[<lane>@..., ...]]]<lane>|..., ...[[[<lane>$ (no terminator).
+# The trailing terminator is optional, so sessions named without an `@<model>`
+# suffix (e.g. `[warp[[sylveste[[[feedback`) still resolve.
 # Bare alphanumeric session names are also returned as-is.
 _il_bd_parse_session_name() {
   local sn="$1"
   [ -z "$sn" ] && return 1
   local cand
-  cand=$(echo "$sn" | sed -E 's/.*[][]{3,}([a-z][a-z0-9_-]+)[@|].*/\1/')
+  cand=$(echo "$sn" | sed -E 's/.*[][]{3,}([a-z][a-z0-9_-]+)([@|].*)?$/\1/')
   if [ "$cand" != "$sn" ] && [[ "$cand" =~ ^[a-z][a-z0-9_-]+$ ]]; then
     echo "$cand"
     return 0
