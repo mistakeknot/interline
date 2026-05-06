@@ -144,6 +144,28 @@ transcript=$(echo "$input" | jq -r '.transcript_path // empty')
 session_id=$(echo "$input" | jq -r '.session_id // empty')
 context_pct=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
 
+# Detect this session's lane: sideband override → tmux session name
+# Used to scope `bd ready` filtering so each tmux pane shows a different next-bead.
+session_lane=""
+if [ -n "$session_id" ]; then
+  _lane_file="$_il_interband_root/interphase/lane/${session_id}.json"
+  if [ -f "$_lane_file" ]; then
+    session_lane=$(_il_interband_payload_field "$_lane_file" "lane")
+  fi
+fi
+if [ -z "$session_lane" ] && [ -n "$TMUX" ] && command -v tmux > /dev/null 2>&1; then
+  _tmux_session=$(tmux display-message -p '#S' 2>/dev/null)
+  if [ -n "$_tmux_session" ]; then
+    # Pattern: ...[[[<lane>@... or ...]]]<lane>@... (also `|` separator)
+    _candidate=$(echo "$_tmux_session" | sed -E 's/.*[][]{3,}([a-z][a-z0-9_-]+)[@|].*/\1/')
+    if [ "$_candidate" != "$_tmux_session" ] && [[ "$_candidate" =~ ^[a-z][a-z0-9_-]+$ ]]; then
+      session_lane="$_candidate"
+    elif [[ "$_tmux_session" =~ ^[a-z][a-z0-9_-]+$ ]]; then
+      session_lane="$_tmux_session"
+    fi
+  fi
+fi
+
 # Get git branch
 git_branch=""
 git_dirty=""
@@ -499,10 +521,13 @@ if _il_cfg_bool '.layers.budget'; then
   fi
 fi
 
-# --- Layer: Next ready bead (top of `bd ready`) ---
+# --- Layer: Next ready bead (top of `bd ready`, scoped to session lane) ---
+# Renders only when a session lane is detected — avoids showing the same global
+# top-of-ready in every tmux pane. Lane comes from the sideband file if set,
+# otherwise from the tmux session name (see lane detection above).
 next_bead_label=""
-if _il_cfg_bool '.layers.next_bead' && command -v bd > /dev/null 2>&1; then
-  next_json=$(timeout 2 bd ready --json --limit 1 --quiet 2>/dev/null || true)
+if _il_cfg_bool '.layers.next_bead' && [ -n "$session_lane" ] && command -v bd > /dev/null 2>&1; then
+  next_json=$(timeout 2 bd ready --label="$session_lane" --json --limit 1 --quiet 2>/dev/null || true)
   if [ -n "$next_json" ] && [ "$next_json" != "null" ] && [ "$next_json" != "[]" ]; then
     n_id=$(echo "$next_json" | jq -r '.[0].id // empty' 2>/dev/null)
     n_priority=$(echo "$next_json" | jq -r '.[0].priority // 4' 2>/dev/null)
