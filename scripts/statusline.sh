@@ -75,6 +75,20 @@ _il_truncate() {
   fi
 }
 
+# Helper: format seconds as compact age (e.g. 12s, 45m, 2h12m, 3d)
+_il_fmt_age() {
+  local s="$1"
+  if [ "$s" -lt 60 ]; then
+    echo "${s}s"
+  elif [ "$s" -lt 3600 ]; then
+    echo "$((s / 60))m"
+  elif [ "$s" -lt 86400 ]; then
+    echo "$((s / 3600))h$(( (s % 3600) / 60 ))m"
+  else
+    echo "$((s / 86400))d"
+  fi
+}
+
 # Helper: read field from interband envelope payload.
 _il_interband_payload_field() {
   local file="$1" jq_field="$2"
@@ -132,8 +146,16 @@ context_pct=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
 
 # Get git branch
 git_branch=""
+git_dirty=""
 if git rev-parse --git-dir > /dev/null 2>&1; then
   git_branch=$(git symbolic-ref --short HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
+  if [ -n "$git_branch" ] && _il_cfg_bool '.layers.dirty'; then
+    dirty_count=$(git status --porcelain 2>/dev/null | wc -l)
+    if [ "${dirty_count:-0}" -gt 0 ]; then
+      cfg_color_dirty=$(_il_cfg '.colors.dirty')
+      git_dirty="$(_il_color "${cfg_color_dirty:-208}" "+${dirty_count}")"
+    fi
+  fi
 fi
 
 # --- Layer 1: Check for active Codex dispatch ---
@@ -242,6 +264,7 @@ if [ -z "$dispatch_label" ] && [ -z "$coord_label" ] && _il_cfg_bool '.layers.be
   # --- 1.5a: Read sideband file for phase context ---
   sideband_id=""
   sideband_phase=""
+  sideband_age=""
   if [ -n "$session_id" ]; then
     bead_file="$_il_interband_root/interphase/bead/${session_id}.json"
     if [ -f "$bead_file" ]; then
@@ -249,6 +272,7 @@ if [ -z "$dispatch_label" ] && [ -z "$coord_label" ] && _il_cfg_bool '.layers.be
       if [ "$file_age" -lt 86400 ]; then
         sideband_id=$(_il_interband_payload_field "$bead_file" "id")
         sideband_phase=$(_il_interband_payload_field "$bead_file" "phase")
+        sideband_age="$file_age"
       fi
     fi
 
@@ -263,6 +287,7 @@ if [ -z "$dispatch_label" ] && [ -z "$coord_label" ] && _il_cfg_bool '.layers.be
       if [ "$file_age" -lt 86400 ]; then
         sideband_id=$(jq -r '.id // empty' "$bead_file" 2>/dev/null)
         sideband_phase=$(jq -r '.phase // empty' "$bead_file" 2>/dev/null)
+        sideband_age="$file_age"
       fi
     fi
   fi
@@ -285,10 +310,22 @@ if [ -z "$dispatch_label" ] && [ -z "$coord_label" ] && _il_cfg_bool '.layers.be
       b_priority=$(echo "$bd_beads" | jq -r ".[$i].priority // 4" 2>/dev/null)
       [ -z "$b_id" ] && continue
 
-      # Check if sideband has phase info for this bead
+      # Check if sideband has phase/age info for this bead
       b_phase=""
-      if [ "$b_id" = "$sideband_id" ] && [ -n "$sideband_phase" ]; then
-        b_phase=" ($sideband_phase)"
+      if [ "$b_id" = "$sideband_id" ]; then
+        _b_pieces=()
+        [ -n "$sideband_phase" ] && _b_pieces+=("$sideband_phase")
+        if [ -n "$sideband_age" ] && _il_cfg_bool '.layers.bead_age'; then
+          _b_pieces+=("$(_il_fmt_age "$sideband_age")")
+        fi
+        if [ "${#_b_pieces[@]}" -gt 0 ]; then
+          _b_joined=""
+          for (( j=0; j<${#_b_pieces[@]}; j++ )); do
+            [ $j -gt 0 ] && _b_joined="$_b_joined, "
+            _b_joined="$_b_joined${_b_pieces[$j]}"
+          done
+          b_phase=" ($_b_joined)"
+        fi
       fi
 
       p_color=$(_il_priority_color "$b_priority")
@@ -303,9 +340,21 @@ if [ -z "$dispatch_label" ] && [ -z "$coord_label" ] && _il_cfg_bool '.layers.be
       bead_parts+=("$bead_entry")
     done
   elif [ -n "$sideband_id" ]; then
-    # Fallback: sideband only (no bd available)
+    # Fallback: sideband only (no bd available or bd_query disabled)
     local_bead="$sideband_id"
-    [ -n "$sideband_phase" ] && local_bead="$local_bead ($sideband_phase)"
+    _sb_pieces=()
+    [ -n "$sideband_phase" ] && _sb_pieces+=("$sideband_phase")
+    if [ -n "$sideband_age" ] && _il_cfg_bool '.layers.bead_age'; then
+      _sb_pieces+=("$(_il_fmt_age "$sideband_age")")
+    fi
+    if [ "${#_sb_pieces[@]}" -gt 0 ]; then
+      _sb_joined=""
+      for (( j=0; j<${#_sb_pieces[@]}; j++ )); do
+        [ $j -gt 0 ] && _sb_joined="$_sb_joined, "
+        _sb_joined="$_sb_joined${_sb_pieces[$j]}"
+      done
+      local_bead="$local_bead ($_sb_joined)"
+    fi
     bead_parts+=("$(_il_color "$cfg_color_bead" "$local_bead")")
   fi
 
@@ -352,6 +401,15 @@ if [ -z "$dispatch_label" ] && [ -z "$coord_label" ] && _il_cfg_bool '.layers.ph
         fi
       fi
     fi
+  fi
+fi
+
+# --- Layer: Session ID (full, second line) ---
+session_id_label=""
+if _il_cfg_bool '.layers.session_id'; then
+  if [ -n "$session_id" ]; then
+    _il_sid_color=$(_il_cfg '.colors.session_id')
+    session_id_label="$(_il_color "${_il_sid_color:-240}" "$session_id")"
   fi
 fi
 
@@ -441,6 +499,21 @@ if _il_cfg_bool '.layers.budget'; then
   fi
 fi
 
+# --- Layer: Next ready bead (top of `bd ready`) ---
+next_bead_label=""
+if _il_cfg_bool '.layers.next_bead' && command -v bd > /dev/null 2>&1; then
+  next_json=$(timeout 2 bd ready --json --limit 1 --quiet 2>/dev/null || true)
+  if [ -n "$next_json" ] && [ "$next_json" != "null" ] && [ "$next_json" != "[]" ]; then
+    n_id=$(echo "$next_json" | jq -r '.[0].id // empty' 2>/dev/null)
+    n_priority=$(echo "$next_json" | jq -r '.[0].priority // 4' 2>/dev/null)
+    if [ -n "$n_id" ]; then
+      cfg_color_next_bead=$(_il_cfg '.colors.next_bead')
+      np_color=$(_il_priority_color "$n_priority")
+      next_bead_label="→ $(_il_color "$np_color" "P${n_priority}") $(_il_color "${cfg_color_next_bead:-${cfg_color_bead}}" "$n_id")"
+    fi
+  fi
+fi
+
 # --- Layer 6: Delegation stats from interspect DB ---
 delegation_label=""
 if _il_cfg_bool '.layers.delegation'; then
@@ -467,6 +540,7 @@ status_line="[$model$interserve_suffix$context_display] $project"
 
 if [ -n "$git_branch" ]; then
   git_display="$(_il_color "$cfg_color_branch" "$git_branch")"
+  [ -n "$git_dirty" ] && git_display="${git_display}${git_dirty}"
   status_line="$status_line${branch_sep}${git_display}"
 fi
 
@@ -476,10 +550,6 @@ if [ -n "$dispatch_label" ]; then
 elif [ -n "$coord_label" ]; then
   status_line="$status_line${sep}$coord_label"
 else
-  # Bead and phase are shown together: "P1 Clavain-4jeg: title... (executing) | Reviewing"
-  if [ -n "$bead_label" ]; then
-    status_line="$status_line${sep}$bead_label"
-  fi
   if [ -n "$phase_label" ]; then
     status_line="$status_line${sep}$phase_label"
   fi
@@ -494,6 +564,21 @@ if [ -n "$budget_label" ]; then
 fi
 if [ -n "$delegation_label" ]; then
   status_line="$status_line${sep}$delegation_label"
+fi
+
+# Second line: session ID + bead + next-bead
+second_line=""
+if [ -n "$session_id_label" ]; then
+  second_line="$session_id_label"
+fi
+if [ -n "$bead_label" ]; then
+  [ -n "$second_line" ] && second_line="$second_line${sep}$bead_label" || second_line="$bead_label"
+fi
+if [ -n "$next_bead_label" ]; then
+  [ -n "$second_line" ] && second_line="$second_line${sep}$next_bead_label" || second_line="$next_bead_label"
+fi
+if [ -n "$second_line" ]; then
+  status_line="$status_line\n$second_line"
 fi
 
 echo -e "$status_line"
