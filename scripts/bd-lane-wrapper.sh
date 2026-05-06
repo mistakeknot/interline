@@ -43,6 +43,50 @@ _il_bd_parse_session_name() {
   return 1
 }
 
+# Check if a lane has at least one existing bead. Returns 0 if real, 1 if phantom.
+# Phantom = the resolved lane name has no labeled beads anywhere in the project,
+# which usually means a typo'd tmux session name or an unbootstrapped workstream.
+_il_bd_lane_has_beads() {
+  local lane="$1"
+  [ -z "$lane" ] && return 1
+  command -v bd > /dev/null 2>&1 || return 0  # No bd → can't verify; assume real
+  # timeout uses PATH lookup (not shell function lookup), so this hits the
+  # bd binary directly, not the wrapper function. `command` would be wrong
+  # here because timeout can't run shell builtins.
+  local count
+  count=$(timeout 2 bd list --label="$lane" --limit 1 --json --quiet 2>/dev/null \
+    | jq 'length' 2>/dev/null)
+  [ "${count:-0}" -gt 0 ]
+}
+
+# List up to 5 existing labels sharing a prefix with the input.
+# Used in phantom-lane suggestions to catch typos like interlyze→interspect.
+_il_bd_lane_suggestions() {
+  local input="$1"
+  local prefix="${input:0:5}"
+  [ -z "$prefix" ] && return 1
+  command -v bd > /dev/null 2>&1 || return 1
+  timeout 3 bd list --json --quiet 2>/dev/null \
+    | jq -r '[.[].labels[]?] | unique | .[]' 2>/dev/null \
+    | grep -E "^${prefix}" \
+    | grep -v -F -x "$input" \
+    | head -5 \
+    | tr '\n' ' '
+}
+
+# Print a stderr warning when a resolved lane appears to be a phantom.
+# Always prints (not gated by BD_LANE_DEBUG) — phantoms are exceptional.
+_il_bd_warn_phantom() {
+  local lane="$1" source="$2"
+  echo "bd-lane: WARNING: lane='${lane}' (from ${source}) has 0 existing beads — possible phantom (typo? unbootstrapped lane?)" >&2
+  local suggestions
+  suggestions=$(_il_bd_lane_suggestions "$lane" 2>/dev/null)
+  if [ -n "$suggestions" ]; then
+    echo "bd-lane: did you mean: ${suggestions% }" >&2
+  fi
+  echo "bd-lane: applying anyway — pass --no-lane to skip, or BD_LANE_STRICT=1 to fall through to Haiku" >&2
+}
+
 # Detect lane from sideband file, then tmux. Echoes lane and source name.
 _il_bd_detect_lane_local() {
   local sid="${CLAUDE_SESSION_ID:-}"
@@ -194,6 +238,25 @@ bd() {
     fi
   fi
 
+  # Phantom-lane check: warn if the resolved lane has no existing beads.
+  # Default = warn but still apply (don't break new-lane bootstrap).
+  # BD_LANE_STRICT=1 = warn + drop the lane and fall through to Haiku/no-tag.
+  if [ -n "$lane" ] && ! _il_bd_lane_has_beads "$lane"; then
+    _il_bd_warn_phantom "$lane" "$source"
+    if [ "${BD_LANE_STRICT:-0}" = "1" ]; then
+      _il_bd_log "strict mode: dropping phantom lane, retrying with Haiku"
+      lane=""
+      if [ -n "$title" ] && lane=$(_il_bd_classify_haiku "$title"); then
+        source="haiku-fallback"
+        # Re-check the Haiku result (Haiku vocab can also include phantom names)
+        if ! _il_bd_lane_has_beads "$lane"; then
+          _il_bd_warn_phantom "$lane" "$source"
+          lane=""
+        fi
+      fi
+    fi
+  fi
+
   if [ -n "$lane" ]; then
     _il_bd_log "lane=${lane} (${source})"
     _il_bd_real "$sub" "$@" --labels="$lane"
@@ -202,3 +265,13 @@ bd() {
   _il_bd_log "no lane resolved"
   _il_bd_real "$sub" "$@"
 }
+
+# Export functions so child non-interactive shells (e.g. Claude Code's Bash tool,
+# scripts spawned via `bash -c`) inherit the wrapper. Bash propagates exported
+# functions through the BASH_FUNC_<name>%% env vars.
+export -f bd \
+  _il_bd_real _il_bd_log \
+  _il_bd_parse_session_name _il_bd_detect_lane_local \
+  _il_bd_lane_vocab _il_bd_classify_haiku \
+  _il_bd_scan_args \
+  _il_bd_lane_has_beads _il_bd_lane_suggestions _il_bd_warn_phantom 2>/dev/null || true
