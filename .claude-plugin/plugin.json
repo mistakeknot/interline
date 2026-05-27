@@ -1,7 +1,7 @@
 {
   "name": "interline",
   "version": "0.2.13",
-  "description": "Dynamic statusline for Claude Code — shows workflow phase, bead context, and Codex dispatch state. Integrates with Clavain and interphase.",
+  "description": "Dynamic statusline for Claude Code \u2014 shows workflow phase, bead context, and Codex dispatch state. Integrates with Clavain and interphase.",
   "author": {
     "name": "mistakeknot"
   },
@@ -16,5 +16,12 @@
   "commands": [
     "./commands/statusline-setup.md",
     "./commands/statusline-customize.md"
+  ],
+  "peerDependencies": [
+    "intercheck",
+    "interlock",
+    "interphase",
+    "interspect",
+    "interstat"
   ]
 }
