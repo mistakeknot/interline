@@ -16,12 +16,5 @@
   "commands": [
     "./commands/statusline-setup.md",
     "./commands/statusline-customize.md"
-  ],
-  "peerDependencies": [
-    "intercheck",
-    "interlock",
-    "interphase",
-    "interspect",
-    "interstat"
   ]
 }

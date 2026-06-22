@@ -8,13 +8,34 @@
     "Context window percentage"
   ],
   "integrated_features": [
-    { "feature": "Context pressure indicator from intercheck", "requires": "intercheck" },
-    { "feature": "Budget alert from interstat", "requires": "interstat" },
-    { "feature": "Coordination state from interlock", "requires": "interlock" },
-    { "feature": "Bead context from interphase", "requires": "interphase" }
+    {
+      "feature": "Context pressure indicator from intercheck",
+      "requires": "intercheck"
+    },
+    {
+      "feature": "Budget alert from interstat",
+      "requires": "interstat"
+    },
+    {
+      "feature": "Coordination state from interlock",
+      "requires": "interlock"
+    },
+    {
+      "feature": "Bead context from interphase",
+      "requires": "interphase"
+    }
   ],
   "companions": {
-    "recommended": ["intercheck", "interphase"],
-    "optional": ["interstat", "interlock"]
+    "recommended": [
+      "intercheck",
+      "interphase",
+      "interlock",
+      "interspect",
+      "interstat"
+    ],
+    "optional": [
+      "interstat",
+      "interlock"
+    ]
   }
 }
