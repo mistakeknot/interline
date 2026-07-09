@@ -170,13 +170,29 @@ unset _il_lane_lib _il_lane_candidate _resolved
 # Get git branch
 git_branch=""
 git_dirty=""
+git_ahead=""
 if git rev-parse --git-dir > /dev/null 2>&1; then
   git_branch=$(git symbolic-ref --short HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
   if [ -n "$git_branch" ] && _il_cfg_bool '.layers.dirty'; then
     dirty_count=$(git status --porcelain 2>/dev/null | wc -l)
+    dirty_count=$(( dirty_count + 0 ))  # BSD wc pads with spaces; normalize
     if [ "${dirty_count:-0}" -gt 0 ]; then
       cfg_color_dirty=$(_il_cfg '.colors.dirty')
       git_dirty="$(_il_color "${cfg_color_dirty:-208}" "+${dirty_count}")"
+    fi
+  fi
+  # Unpushed commits: committed-but-stranded work is invisible in the dirty
+  # count. Prefer the upstream delta; for upstream-less branches fall back to
+  # commits on no remote ref (mirrors auto-push.sh), guarded on origin
+  # existing so remoteless scratch repos don't count their entire history.
+  if [ -n "$git_branch" ] && _il_cfg_bool '.layers.ahead'; then
+    ahead_count=$(git rev-list --count @{upstream}..HEAD 2>/dev/null)
+    if [ -z "$ahead_count" ] && git remote get-url origin > /dev/null 2>&1; then
+      ahead_count=$(git rev-list --count HEAD --not --remotes 2>/dev/null)
+    fi
+    if [ "${ahead_count:-0}" -gt 0 ]; then
+      cfg_color_ahead=$(_il_cfg '.colors.ahead')
+      git_ahead="$(_il_color "${cfg_color_ahead:-214}" "⇡${ahead_count}")"
     fi
   fi
 fi
@@ -436,6 +452,46 @@ if _il_cfg_bool '.layers.session_id'; then
   fi
 fi
 
+# --- Layer: Session stats (age + lines changed, from the stdin cost block) ---
+# Answers "which pane is the long-running one and has it produced anything"
+# without leaving the statusline. Dollar cost is opt-in (layers.cost: true) —
+# on subscription plans the number is notional.
+session_stats_label=""
+if _il_cfg_bool '.layers.session_stats'; then
+  IFS=$'\t' read -r _il_dur_ms _il_lines_add _il_lines_rem _il_cost_usd < <(
+    echo "$input" | jq -r '[
+      (.cost.total_duration_ms // 0),
+      (.cost.total_lines_added // 0),
+      (.cost.total_lines_removed // 0),
+      (.cost.total_cost_usd // 0)
+    ] | @tsv' 2>/dev/null)
+  cfg_color_stats=$(_il_cfg '.colors.session_stats')
+  _il_stats_parts=()
+  _il_dur_s=$(( ${_il_dur_ms:-0} / 1000 ))
+  # Under a minute is noise, not signal — a fresh session needs no age chip.
+  if [ "$_il_dur_s" -ge 60 ]; then
+    _il_stats_parts+=("$(_il_color "${cfg_color_stats:-245}" "$(_il_fmt_age "$_il_dur_s")")")
+  fi
+  if [ "$(( ${_il_lines_add:-0} + ${_il_lines_rem:-0} ))" -gt 0 ]; then
+    cfg_color_lines_add=$(_il_cfg '.colors.lines_added')
+    cfg_color_lines_rem=$(_il_cfg '.colors.lines_removed')
+    _il_stats_parts+=("$(_il_color "${cfg_color_lines_add:-108}" "+${_il_lines_add}")$(_il_color "${cfg_color_lines_rem:-167}" "/-${_il_lines_rem}")")
+  fi
+  if [ "$(_il_cfg '.layers.cost')" = "true" ]; then
+    _il_cost_fmt=$(printf '%.2f' "${_il_cost_usd:-0}" 2>/dev/null)
+    if [ -n "$_il_cost_fmt" ] && [ "$_il_cost_fmt" != "0.00" ]; then
+      _il_stats_parts+=("$(_il_color "${cfg_color_stats:-245}" "\$${_il_cost_fmt}")")
+    fi
+  fi
+  if [ "${#_il_stats_parts[@]}" -gt 0 ]; then
+    session_stats_label=""
+    for (( i=0; i<${#_il_stats_parts[@]}; i++ )); do
+      [ $i -gt 0 ] && session_stats_label="$session_stats_label · "
+      session_stats_label="$session_stats_label${_il_stats_parts[$i]}"
+    done
+  fi
+fi
+
 # --- Layer 3: Branding label (toggle-gated or always-on) ---
 interserve_suffix=""
 if _il_cfg_bool '.layers.interserve'; then
@@ -551,6 +607,32 @@ if _il_cfg_bool '.layers.budget'; then
   fi
 fi
 
+# --- Layer: Loop-breaker gate alert (Clavain stop-hook suppression state) ---
+# The stop-hook loop breaker goes deliberately silent after its one BLOCKED
+# message (lib-loop-breaker.sh) — this marker is the only surface telling the
+# user the session is parked on a human gate. State file read is cheap; the
+# telemetry grep for the fire count only runs once a session is actually
+# suppressed, so the common case costs one [ -f ] test.
+loop_label=""
+if _il_cfg_bool '.layers.loop_breaker' && [ -n "$session_id" ]; then
+  _il_lb_dir="${CLAVAIN_LOOP_BREAKER_DIR:-$HOME/.clavain/stop-loop-breaker}"
+  _il_lb_file="$_il_lb_dir/$(echo "$session_id" | tr '/:' '__').json"
+  if [ -f "$_il_lb_file" ]; then
+    _il_lb_suppressed=$(jq -r '.suppressed // false' "$_il_lb_file" 2>/dev/null)
+    if [ "$_il_lb_suppressed" = "true" ]; then
+      _il_lb_count=""
+      _il_lb_telemetry="$HOME/.clavain/telemetry.jsonl"
+      if [ -f "$_il_lb_telemetry" ]; then
+        _il_lb_n=$(grep '"stop_loop_suppression"' "$_il_lb_telemetry" 2>/dev/null \
+          | grep -c -- "$session_id" 2>/dev/null)
+        [ "${_il_lb_n:-0}" -gt 0 ] && _il_lb_count="×${_il_lb_n}"
+      fi
+      cfg_color_loop=$(_il_cfg '.colors.loop_breaker')
+      loop_label="$(_il_color "${cfg_color_loop:-196}" "gate⛔${_il_lb_count}")"
+    fi
+  fi
+fi
+
 # --- Layer: Next ready bead (top of `bd ready`, scoped to session lane) ---
 # Renders only when a session lane is detected — avoids showing the same global
 # top-of-ready in every tmux pane. Lane comes from the sideband file if set,
@@ -596,6 +678,7 @@ status_line="[$model$interserve_suffix$context_display] $project"
 if [ -n "$git_branch" ]; then
   git_display="$(_il_color "$cfg_color_branch" "$git_branch")"
   [ -n "$git_dirty" ] && git_display="${git_display}${git_dirty}"
+  [ -n "$git_ahead" ] && git_display="${git_display}${git_ahead}"
   status_line="$status_line${branch_sep}${git_display}"
 fi
 
@@ -611,6 +694,9 @@ else
 fi
 
 # Append ambient indicators (always visible, independent of dispatch/coord/bead)
+if [ -n "$loop_label" ]; then
+  status_line="$status_line${sep}$loop_label"
+fi
 if [ -n "$pressure_label" ]; then
   status_line="$status_line${sep}$pressure_label"
 fi
@@ -621,10 +707,13 @@ if [ -n "$delegation_label" ]; then
   status_line="$status_line${sep}$delegation_label"
 fi
 
-# Second line: session ID + bead + next-bead
+# Second line: session ID + stats + bead + next-bead
 second_line=""
 if [ -n "$session_id_label" ]; then
   second_line="$session_id_label"
+fi
+if [ -n "$session_stats_label" ]; then
+  [ -n "$second_line" ] && second_line="$second_line${sep}$session_stats_label" || second_line="$session_stats_label"
 fi
 if [ -n "$bead_label" ]; then
   [ -n "$second_line" ] && second_line="$second_line${sep}$bead_label" || second_line="$bead_label"

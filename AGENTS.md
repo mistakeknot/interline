@@ -43,12 +43,15 @@ All customization lives in `~/.claude/interline.json`. Every field is optional �
     "priority": [196, 208, 220, 75, 245],
     "dispatch": 214, "bead": 117, "phase": 245,
     "branch": 244, "coordination": 214,
-    "context": 245, "context_warn": 220, "context_critical": 196
+    "context": 245, "context_warn": 220, "context_critical": 196,
+    "ahead": 214, "loop_breaker": 196, "session_stats": 245,
+    "lines_added": 108, "lines_removed": 167
   },
   "layers": {
     "dispatch": true, "bead": true, "bead_query": false,
     "phase": true, "interserve": true, "interserve_always": true,
-    "coordination": false, "context": true, "pressure": true, "budget": true
+    "coordination": false, "context": true, "pressure": true, "budget": true,
+    "ahead": true, "loop_breaker": true, "session_stats": true, "cost": false
   },
   "labels": {
     "interserve": "Clavain",
@@ -71,8 +74,12 @@ ANSI 256-color codes (0-255). `colors.interserve` — array for per-letter rainb
 Set any layer to `false` to hide it. Notable:
 - `layers.bead_query` — controls `bd list` queries (disable to rely on sideband files only)
 - `layers.coordination` — interlock signals (requires `INTERMUTE_AGENT_ID` env var)
-- `layers.context` — context window usage % (reads from stdin JSON)
+- `layers.context` — context window usage, absolute tokens + % of window (reads from stdin JSON)
 - `layers.interserve_always` — branding label always visible vs gated by clodex-toggle
+- `layers.ahead` — `⇡N` unpushed-commits marker next to the branch (upstream delta; for upstream-less branches, commits on no remote ref when origin exists)
+- `layers.loop_breaker` — red `gate⛔×N` alert when Clavain's stop-hook loop breaker has parked the session on a human gate (reads `~/.clavain/stop-loop-breaker/<session>.json`; ×N counted from `~/.clavain/telemetry.jsonl`)
+- `layers.session_stats` — session age + lines changed (`2h14m · +310/-42`) on the second line, from the stdin `cost` block; age hidden under 60s
+- `layers.cost` — opt-in (`true` required): appends session `$` spend to session stats; notional on subscription plans
 
 ### Agent guidelines
 
