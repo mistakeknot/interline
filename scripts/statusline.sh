@@ -465,18 +465,47 @@ if _il_cfg_bool '.layers.interserve'; then
   fi
 fi
 
-# --- Build context window % display ---
+# --- Build context window display (absolute tokens + % of window) ---
+# Degradation evidence tracks ABSOLUTE token count, not window fraction —
+# on a 1M model the 80% band (=800K) sits far past every measured quality
+# knee. So severity is the worse of two scales: % of window (95/80, the
+# out-of-space warning) and absolute used tokens (defaults 200k/100k,
+# matching Anthropic's own 100K context-editing / 150K compaction
+# defaults). Override via .thresholds.context_abs_warn_k / _critical_k.
 context_display=""
 if [ -n "$context_pct" ] && _il_cfg_bool '.layers.context'; then
   pct_int="${context_pct%.*}"  # strip decimal
-  if [ "${pct_int:-0}" -ge 95 ]; then
-    ctx_color="${cfg_color_context_critical:-196}"
-  elif [ "${pct_int:-0}" -ge 80 ]; then
-    ctx_color="${cfg_color_context_warn:-220}"
-  else
-    ctx_color="${cfg_color_context:-245}"
+  ctx_size=$(echo "$input" | jq -r '.context_window.context_window_size // 0')
+  ctx_used=$(echo "$input" | jq -r '.context_window.current_usage
+    | if . == null then 0
+      else ((.input_tokens // 0) + (.cache_creation_input_tokens // 0) + (.cache_read_input_tokens // 0))
+      end' 2>/dev/null)
+  ctx_used="${ctx_used:-0}"
+  # current_usage is null right after /compact — derive from the % instead
+  if [ "${ctx_used:-0}" -eq 0 ] && [ "${ctx_size:-0}" -gt 0 ] && [ "${pct_int:-0}" -gt 0 ]; then
+    ctx_used=$(( ctx_size * pct_int / 100 ))
   fi
-  context_display=" · $(_il_color "$ctx_color" "${pct_int}%")"
+  ctx_used_k=$(( ctx_used / 1000 ))
+
+  ctx_abs_warn_k=$(_il_cfg '.thresholds.context_abs_warn_k')
+  ctx_abs_warn_k="${ctx_abs_warn_k:-100}"
+  ctx_abs_crit_k=$(_il_cfg '.thresholds.context_abs_critical_k')
+  ctx_abs_crit_k="${ctx_abs_crit_k:-200}"
+
+  ctx_sev=0
+  [ "${pct_int:-0}" -ge 80 ] && ctx_sev=1
+  [ "$ctx_used_k" -ge "$ctx_abs_warn_k" ] && ctx_sev=1
+  [ "${pct_int:-0}" -ge 95 ] && ctx_sev=2
+  [ "$ctx_used_k" -ge "$ctx_abs_crit_k" ] && ctx_sev=2
+  case "$ctx_sev" in
+    2) ctx_color="${cfg_color_context_critical:-196}" ;;
+    1) ctx_color="${cfg_color_context_warn:-220}" ;;
+    *) ctx_color="${cfg_color_context:-245}" ;;
+  esac
+
+  ctx_label="${pct_int}%"
+  [ "$ctx_used_k" -gt 0 ] && ctx_label="${ctx_used_k}k·${pct_int}%"
+  context_display=" · $(_il_color "$ctx_color" "$ctx_label")"
 fi
 
 # --- Layer 4: Context pressure from intercheck interband signal ---
