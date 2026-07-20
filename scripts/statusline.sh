@@ -307,7 +307,8 @@ if [ -z "$dispatch_label" ] && [ -z "$coord_label" ] && _il_cfg_bool '.layers.be
   if [ -n "$session_id" ]; then
     bead_file="$_il_interband_root/interphase/bead/${session_id}.json"
     if [ -f "$bead_file" ]; then
-      file_age=$(( $(date +%s) - $(stat -c %Y "$bead_file" 2>/dev/null || echo 0) ))
+      # stat -c is GNU; -f %m is the BSD/macOS spelling (Sylveste-rfs).
+      file_age=$(( $(date +%s) - $(stat -c %Y "$bead_file" 2>/dev/null || stat -f %m "$bead_file" 2>/dev/null || echo 0) ))
       if [ "$file_age" -lt 86400 ]; then
         sideband_id=$(_il_interband_payload_field "$bead_file" "id")
         sideband_phase=$(_il_interband_payload_field "$bead_file" "phase")
@@ -322,7 +323,7 @@ if [ -z "$dispatch_label" ] && [ -z "$coord_label" ] && _il_cfg_bool '.layers.be
       bead_file=""
     fi
     if [ -n "$bead_file" ] && [ -f "$bead_file" ]; then
-      file_age=$(( $(date +%s) - $(stat -c %Y "$bead_file" 2>/dev/null || echo 0) ))
+      file_age=$(( $(date +%s) - $(stat -c %Y "$bead_file" 2>/dev/null || stat -f %m "$bead_file" 2>/dev/null || echo 0) ))
       if [ "$file_age" -lt 86400 ]; then
         sideband_id=$(jq -r '.id // empty' "$bead_file" 2>/dev/null)
         sideband_phase=$(jq -r '.phase // empty' "$bead_file" 2>/dev/null)
