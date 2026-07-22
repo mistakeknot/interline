@@ -54,10 +54,6 @@ def test_statusline_renders_from_kernel_envelope_only(project_root, tmp_path):
         json.dumps(_kernel_envelope("Test-042", "executing"))
     )
 
-    # No legacy /tmp sideband may exist for this session id.
-    legacy = f"/tmp/clavain-bead-{SESSION_ID}.json"
-    subprocess.run(["rm", "-f", legacy], check=True)
-
     stdin_payload = json.dumps({
         "session_id": SESSION_ID,
         "model": {"display_name": "Test"},
@@ -108,7 +104,6 @@ def test_stale_kernel_envelope_is_ignored(project_root, tmp_path):
     envelope_path.write_text(json.dumps(_kernel_envelope("Test-042", "executing")))
     stale = time.time() - 90000  # > 24h
     os.utime(envelope_path, (stale, stale))
-    subprocess.run(["rm", "-f", f"/tmp/clavain-bead-{SESSION_ID}.json"], check=True)
 
     result = subprocess.run(
         ["bash", str(project_root / STATUSLINE)],
@@ -122,3 +117,39 @@ def test_stale_kernel_envelope_is_ignored(project_root, tmp_path):
     )
     assert result.returncode == 0, result.stderr
     assert "Test-042" not in result.stdout
+
+def test_legacy_tmp_sideband_is_not_read(project_root, tmp_path):
+    """Sylveste-zlc: the legacy /tmp/clavain-bead path is retired — a file
+    there must never influence the statusline, even with no kernel envelope."""
+    home = tmp_path / "home"
+    (home / ".claude").mkdir(parents=True)
+    (home / ".claude" / "interline.json").write_text(json.dumps({
+        "layers": {
+            "dispatch": False, "coordination": False, "bead_query": False,
+            "phase": False, "session_id": False, "dirty": False,
+            "ahead": False, "context": False,
+        }
+    }))
+    interband = tmp_path / "interband"
+    (interband / "interphase" / "bead").mkdir(parents=True)  # empty: no envelope
+
+    legacy = f"/tmp/clavain-bead-{SESSION_ID}.json"
+    with open(legacy, "w") as f:
+        json.dump({"id": "Test-999", "phase": "executing", "ts": int(time.time())}, f)
+    try:
+        result = subprocess.run(
+            ["bash", str(project_root / STATUSLINE)],
+            input=json.dumps({"session_id": SESSION_ID,
+                              "workspace": {"current_dir": str(tmp_path)}}),
+            capture_output=True, text=True, cwd=str(tmp_path),
+            env={"HOME": str(home),
+                 "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin",
+                 "INTERBAND_ROOT": str(interband)},
+            timeout=30,
+        )
+    finally:
+        subprocess.run(["rm", "-f", legacy], check=True)
+    assert result.returncode == 0, result.stderr
+    assert "Test-999" not in result.stdout, (
+        f"legacy /tmp sideband was read after retirement: {result.stdout!r}"
+    )

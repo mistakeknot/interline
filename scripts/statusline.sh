@@ -316,20 +316,6 @@ if [ -z "$dispatch_label" ] && [ -z "$coord_label" ] && _il_cfg_bool '.layers.be
       fi
     fi
 
-    # Backward-compatible fallback to legacy sideband path.
-    if [ -z "$sideband_id" ] || [ -z "$sideband_phase" ]; then
-      bead_file="/tmp/clavain-bead-${session_id}.json"
-    else
-      bead_file=""
-    fi
-    if [ -n "$bead_file" ] && [ -f "$bead_file" ]; then
-      file_age=$(( $(date +%s) - $(stat -c %Y "$bead_file" 2>/dev/null || stat -f %m "$bead_file" 2>/dev/null || echo 0) ))
-      if [ "$file_age" -lt 86400 ]; then
-        sideband_id=$(jq -r '.id // empty' "$bead_file" 2>/dev/null)
-        sideband_phase=$(jq -r '.phase // empty' "$bead_file" 2>/dev/null)
-        sideband_age="$file_age"
-      fi
-    fi
   fi
 
   # --- 1.5b: Query bd for all in_progress beads ---
